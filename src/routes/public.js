@@ -2,7 +2,8 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
-import fs from 'fs';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 import { AppRepository } from '../repositories/AppRepository.js';
 import { TicketSearchRepository } from '../repositories/TicketSearchRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
@@ -13,7 +14,6 @@ import { ComboPricingService } from '../services/ComboPricingService.js';
 import { db } from '../config/database.js';
 
 const router = express.Router();
-
 const appRepo = new AppRepository(db);
 const searchRepo = new TicketSearchRepository(db);
 const userRepo = new UserRepository(db);
@@ -24,19 +24,15 @@ const sorteoService = new SorteoService({ appRepo, walletService, db, comboPrici
 const compraLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
 const consultaLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
 
-if (!fs.existsSync('public/uploads')) {
-  fs.mkdirSync('public/uploads', { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) { cb(null, 'public/uploads/'); },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname.replace(/\s+/g, '_'));
-  }
+// ✅ Storage en Cloudinary (NO en disco local, porque Render borra el disco)
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'sorteos-pro/comprobantes',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+  },
 });
 
-// Límite de 5 MB y solo imágenes/PDF (antes: sin límite).
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -56,14 +52,17 @@ const safeMsg = (e) => {
   return m;
 };
 
+// ============================================
+// RUTA /bootstrap (devuelve TODO lo que el cliente necesita)
+// ============================================
 router.get('/bootstrap', async (req, res) => {
   try {
     const config = await appRepo.getConfig();
     const sorteosActivos = await appRepo.getSorteosActivos();
     const sorteos = sorteosActivos.map(s => ({ ...s, combo_descuentos: s.combo_descuentos ? JSON.parse(s.combo_descuentos) : [] }));
-
     res.json({
-      config, sorteos,
+      config,
+      sorteos,
       promociones: await appRepo.getPromocionesActivas(),
       resultados_recientes: (await appRepo.getAllResultados()).slice(0, 5),
       ganadores: (await appRepo.getGanadoresRecientes(5)).map(g => ({ ...g, codigo_ticket: g.codigo_ticket.slice(0, 5) + '****' })),
@@ -78,13 +77,27 @@ router.get('/bootstrap', async (req, res) => {
   }
 });
 
+// ============================================
+// RUTA /config (alias de /bootstrap para compatibilidad con frontend)
+// ============================================
+router.get('/config', async (req, res) => {
+  try {
+    const config = await appRepo.getConfig();
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// ============================================
+// Buscar cliente por DNI
+// ============================================
 router.get('/cliente/:dni', consultaLimiter, async (req, res) => {
   try {
     const dni = req.params.dni;
     if (!dni || dni.length !== 8) return res.json({ encontrado: false });
-
     const cliente = await userRepo.findByDni(dni);
-
     if (cliente) {
       const partes = (cliente.nombre || '').trim().split(' ');
       res.json({
@@ -105,10 +118,12 @@ router.get('/cliente/:dni', consultaLimiter, async (req, res) => {
   }
 });
 
+// ============================================
+// Comprar aleatorio
+// ============================================
 router.post('/comprar-aleatorio', compraLimiter, upload.single('comprobante'), async (req, res) => {
   try {
     const { sorteo_id, nombres, apellidos, dni, departamento, celular, cantidad_tickets } = req.body;
-
     if (!sorteo_id) throw new Error('ID del sorteo es requerido');
     if (!dni || String(dni).length !== 8) throw new Error('DNI válido de 8 dígitos es requerido');
 
@@ -121,7 +136,6 @@ router.post('/comprar-aleatorio', compraLimiter, upload.single('comprobante'), a
     const cantidad = Number(cantidad_tickets) || 1;
     if (cantidad < 1 || cantidad > 50) throw new Error('Cantidad de tickets inválida (1-50)');
 
-    // Genera N combinaciones aleatorias distintas.
     const jugadas = [];
     for (let i = 0; i < cantidad; i++) {
       const numeros = [];
@@ -143,9 +157,9 @@ router.post('/comprar-aleatorio', compraLimiter, upload.single('comprobante'), a
       cantidad_sorteos: 1,
       si_o_si: false,
       boliyapa_numero: null,
-      comprobante_url: req.file ? `/uploads/${req.file.filename}` : null,
+      comprobante_url: req.file ? req.file.path : null, // ✅ URL de Cloudinary
       comprobante_file: req.file,
-      modo_aleatorio: true // ✅ cada jugada = ticket independiente
+      modo_aleatorio: true
     });
 
     res.status(201).json({ tickets: resultado.tickets });
@@ -155,17 +169,16 @@ router.post('/comprar-aleatorio', compraLimiter, upload.single('comprobante'), a
   }
 });
 
-// ⚠️ SEGURIDAD: este endpoint sigue público para no romper el frontend admin actual.
-//    DEBE protegerse con `requireAdmin` (de src/middleware/adminAuth.js) en una próxima iteración.
+// ============================================
+// Crear tickets (admin)
+// ============================================
 router.post('/tickets', compraLimiter, async (req, res) => {
   try {
     if (!req.body.sorteo_id) throw new Error('Falta el ID del sorteo');
-
     const { cliente_dni, cliente_nombre, telefono, departamento } = req.body;
     if (cliente_dni && String(cliente_dni).length === 8) {
       await userRepo.saveOrUpdateClient(cliente_dni, cliente_nombre || '', telefono || '', departamento || '');
     }
-
     res.status(201).json(await sorteoService.comprar(req.body));
   } catch (e) {
     console.error('Error en tickets admin:', e);
@@ -173,6 +186,9 @@ router.post('/tickets', compraLimiter, async (req, res) => {
   }
 });
 
+// ============================================
+// Ver ticket por código
+// ============================================
 router.get('/tickets/:codigo', async (req, res) => {
   try {
     const t = await appRepo.getTicketByCodigo(req.params.codigo);
@@ -183,15 +199,16 @@ router.get('/tickets/:codigo', async (req, res) => {
   }
 });
 
+// ============================================
+// Consultar tickets
+// ============================================
 router.get('/consultar-tickets', consultaLimiter, async (req, res) => {
   try {
     const q = req.query.q;
     if (!q || q.trim().length < 3) {
       return res.status(400).json({ error: 'Ingresa al menos 3 caracteres, un DNI (8 dígitos) o un celular (9 dígitos)' });
     }
-
     const resultado = await searchRepo.buscarTicketsPorCliente(q);
-
     if (resultado && resultado.tickets && resultado.tickets.length > 0) {
       if (!resultado.nombre) {
         resultado.nombre = resultado.tickets[0].cliente_nombre || resultado.tickets[0].nombre_cliente || resultado.tickets[0].nombre || 'Cliente';
@@ -203,7 +220,6 @@ router.get('/consultar-tickets', consultaLimiter, async (req, res) => {
       resultado.nombre = 'No encontrado';
       resultado.departamento = '-';
     }
-
     res.json(resultado);
   } catch (e) {
     console.error('Error al consultar tickets:', e);
