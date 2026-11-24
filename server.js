@@ -47,7 +47,7 @@ const verifyApiKey = (req, res, next) => {
 };
 
 // ============================================
-// 1. Validar pago Yape
+// 1. Validar pago Yape (Sincronizado con public.js)
 // ============================================
 app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
     try {
@@ -77,25 +77,36 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 
         console.log(`✅ Pago detectado: ${nombre} - S/.${monto} - Código: ${codigo}`);
 
+        // ✅ SEGURIDAD: Verificar si el código de Yape ya fue usado antes (evita duplicados)
+        const existe = await db.execute({
+            sql: "SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1",
+            args: [codigo]
+        });
+        if (existe.rows.length > 0) {
+            return res.json({ status: 'revisar', mensaje: 'Este código de Yape ya fue utilizado' });
+        }
+
+        // ✅ CORREGIDO: Buscamos usando 'total_pagado' y verificamos que no tenga comprobante_hash (esté pendiente)
         const result = await db.execute({
-            sql: "SELECT * FROM tickets WHERE monto = ? AND estado = 'pendiente' ORDER BY creado_en ASC LIMIT 1",
+            sql: "SELECT * FROM tickets WHERE total_pagado = ? AND comprobante_hash IS NULL ORDER BY creado_en ASC LIMIT 1",
             args: [monto],
         });
 
         if (result.rows.length > 0) {
             const ticket = result.rows[0];
 
+            // ✅ CORREGIDO: Guardamos el código Yape en comprobante_hash y marcamos como pagado
             await db.execute({
-                sql: `UPDATE tickets SET estado = 'pagado', codigo_yape = ?, nombre_pagador = ?, fecha_pago = ? WHERE id = ?`,
-                args: [codigo, nombre, fecha, ticket.id],
+                sql: `UPDATE tickets SET comprobante_hash = ? WHERE id = ?`,
+                args: [codigo, ticket.id],
             });
 
-            console.log(`🎉 Ticket #${ticket.numero_sorteo} APROBADO para ${nombre}`);
+            console.log(`🎉 Ticket #${ticket.codigo_ticket} APROBADO para ${nombre}`);
 
             res.json({
                 status: 'aprobado',
-                numero_ticket: ticket.numero_sorteo,
-                mensaje: `Pago validado. Tu número es: ${ticket.numero_sorteo}`
+                numero_ticket: ticket.codigo_ticket,
+                mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
             });
         } else {
             console.log(`⚠️ Pago de S/.${monto} sin ticket pendiente`);
@@ -108,7 +119,7 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 });
 
 // ============================================
-// 2. Crear ticket
+// 2. Crear ticket manual (Para pruebas desde Postman/API)
 // ============================================
 app.post('/api/crear-ticket', async (req, res) => {
     try {
@@ -118,20 +129,20 @@ app.post('/api/crear-ticket', async (req, res) => {
         }
 
         const monto = cantidad * 5;
-        const id = Date.now().toString();
-        const numero_sorteo = Math.floor(1000 + Math.random() * 9000);
+        const codigo_ticket = Math.floor(10000 + Math.random() * 90000).toString(); 
 
+        // ✅ CORREGIDO: Adaptado a la estructura real de tu base de datos
         await db.execute({
-            sql: `INSERT INTO tickets (id, telefono, nombre_cliente, cantidad, monto, numero_sorteo, estado) 
-                  VALUES (?, ?, ?, ?, ?, ?, 'pendiente')`,
-            args: [id, telefono, nombre_cliente, cantidad, monto, numero_sorteo],
+            sql: `INSERT INTO tickets (codigo_ticket, cliente_nombre, cliente_telefono, cantidad_tickets, total_pagado) 
+                  VALUES (?, ?, ?, ?, ?)`,
+            args: [codigo_ticket, nombre_cliente, telefono, cantidad, monto],
         });
 
-        console.log(`🎟️ Ticket creado: #${numero_sorteo} para ${nombre_cliente}`);
+        console.log(`🎟️ Ticket creado: #${codigo_ticket} para ${nombre_cliente}`);
 
         res.json({
             mensaje: `Ticket creado. Envía S/.${monto} al Yape.`,
-            numero_reservado: numero_sorteo
+            numero_reservado: codigo_ticket
         });
     } catch (error) {
         console.error('Error:', error);
@@ -140,12 +151,13 @@ app.post('/api/crear-ticket', async (req, res) => {
 });
 
 // ============================================
-// 3. Ver tickets
+// 3. Ver tickets (Panel de admin)
 // ============================================
 app.get('/api/tickets', async (req, res) => {
     try {
-        const pendientes = await db.execute("SELECT * FROM tickets WHERE estado = 'pendiente'");
-        const validados = await db.execute("SELECT * FROM tickets WHERE estado = 'pagado'");
+        // ✅ CORREGIDO: Pendiente significa que comprobante_hash es NULL
+        const pendientes = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NULL");
+        const validados = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NOT NULL");
         res.json({ pendientes: pendientes.rows, validados: validados.rows });
     } catch (error) {
         res.status(500).json({ error: error.message });
