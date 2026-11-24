@@ -1,12 +1,17 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path'); 
+import 'dotenv/config'; // Nueva forma de cargar dotenv
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary'; // Importamos Cloudinary arriba
 
-// IMPORTANTE: Ahora usamos la conexión real unificada
-const { db, testConnection } = require('./src/config/database.js');
+// Importaciones de tus archivos locales
+import { db, testConnection } from './src/config/database.js';
+import adminRoutes from './src/routes/admin.js';
 
-// NOTA: Quitamos el require de adminRoutes aquí arriba porque usa ES Modules
+// En ES Modules, __dirname no existe, así que lo creamos:
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -18,9 +23,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Servir los archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
+// MONTAMOS LAS RUTAS DE ADMINISTRACIÓN
+app.use('/api/admin', adminRoutes);
+
 // Configuración de Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
-    const cloudinary = require('cloudinary').v2;
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         api_key: process.env.CLOUDINARY_API_KEY,
@@ -109,7 +116,7 @@ app.post('/api/crear-ticket', async (req, res) => {
             return res.status(400).json({ status: 'error', mensaje: 'Faltan datos' });
         }
 
-        const monto = cantidad * 5; // Ajusta este multiplicador si el precio del ticket cambia
+        const monto = cantidad * 5;
         const id = Date.now().toString();
         const numero_sorteo = Math.floor(1000 + Math.random() * 9000);
 
@@ -157,24 +164,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// INICIAR SERVIDOR (CON IMPORTACIÓN DINÁMICA)
+// INICIAR SERVIDOR
 // ============================================
 const PORT = process.env.PORT || 3000;
 
-// 1. Importamos dinámicamente las rutas de admin (que usan ES Modules)
-import('./src/routes/admin.js').then((module) => {
-    
-    // 2. Montamos las rutas usando el export default del módulo
-    app.use('/api/admin', module.default);
-    console.log('✅ Rutas de administración cargadas correctamente');
-
-    // 3. Recién ahora probamos la conexión y arrancamos el servidor
-    testConnection().then(() => {
-        app.listen(PORT, () => {
-            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-            console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
-        });
+testConnection().then(() => {
+    app.listen(PORT, () => {
+        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+        console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
+        console.log(`✅ Rutas de administración montadas correctamente en /api/admin`);
     });
-}).catch(err => {
-    console.error('❌ Error fatal cargando las rutas de administración:', err);
 });
