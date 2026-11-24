@@ -6,8 +6,7 @@ const path = require('path');
 // IMPORTANTE: Ahora usamos la conexión real unificada
 const { db, testConnection } = require('./src/config/database.js');
 
-// 1. NUEVO: Importamos las rutas de administración
-const adminRoutes = require('./src/routes/admin.js'); 
+// NOTA: Quitamos el require de adminRoutes aquí arriba porque usa ES Modules
 
 const app = express();
 
@@ -18,9 +17,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Servir los archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
-
-// 2. NUEVO: Montamos las rutas de admin en /api/admin
-app.use('/api/admin', adminRoutes); 
 
 // Configuración de Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
@@ -161,14 +157,24 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// INICIAR SERVIDOR
+// INICIAR SERVIDOR (CON IMPORTACIÓN DINÁMICA)
 // ============================================
 const PORT = process.env.PORT || 3000;
 
-// Primero probamos la conexión, y luego arrancamos el servidor
-testConnection().then(() => {
-    app.listen(PORT, () => {
-        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-        console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
+// 1. Importamos dinámicamente las rutas de admin (que usan ES Modules)
+import('./src/routes/admin.js').then((module) => {
+    
+    // 2. Montamos las rutas usando el export default del módulo
+    app.use('/api/admin', module.default);
+    console.log('✅ Rutas de administración cargadas correctamente');
+
+    // 3. Recién ahora probamos la conexión y arrancamos el servidor
+    testConnection().then(() => {
+        app.listen(PORT, () => {
+            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+            console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
+        });
     });
+}).catch(err => {
+    console.error('❌ Error fatal cargando las rutas de administración:', err);
 });
