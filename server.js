@@ -165,8 +165,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// 5. RUTA SECRETA PARA CREAR TABLAS EN RENDER (Gratis)
+// 5. RUTA SECRETA PARA CREAR TABLAS (DESACTIVADA POR SEGURIDAD)
 // ============================================
+/*
 app.get('/api/run-migrations', async (req, res) => {
     try {
         console.log('⏳ Iniciando migraciones desde la web...');
@@ -177,6 +178,7 @@ app.get('/api/run-migrations', async (req, res) => {
         res.status(500).json({ status: 'error', mensaje: error.message });
     }
 });
+*/
 
 // ============================================
 // INICIAR SERVIDOR
