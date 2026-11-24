@@ -1,0 +1,106 @@
+/* ====== PANTALLA (barra de herramientas) ====== */
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+body { background: #eef1f4; padding: 1rem; }
+
+.toolbar {
+  max-width: 210mm; margin: 0 auto 1.2rem auto;
+  background: #fff; border-radius: 10px; padding: 1rem 1.2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.toolbar label { font-weight: bold; margin-right: .5rem; }
+.toolbar select { padding: .4rem .6rem; border-radius: 6px; border: 1px solid #ccc; font-size: .9rem; }
+.btn-print { background: #1d6fa5; color: #fff; border: none; padding: .6rem 1rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-close { background: #555; color: #fff; border: none; padding: .6rem 1rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+/* ====== HOJA A4 (8 tickets: 2 col × 4 filas) ====== */
+.hoja {
+  max-width: 210mm; margin: 0 auto;
+  background: #fff; padding: 8mm;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 4mm;
+  height: 297mm;
+  box-shadow: 0 0 12px rgba(0,0,0,.12);
+}
+
+.ticket {
+  position: relative;
+  border: 1px dashed #cfcfcf;
+  border-radius: 8px;
+  padding: 4mm;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  text-align: center;
+  background-image: radial-gradient(#d9d9d9 1px, transparent 1px);
+  background-size: 7px 7px;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.ticket-vacio { background-image: radial-gradient(#ececec 1px, transparent 1px); }
+
+/* ✅ NÚMERO DE TICKET (tamaño de referencia, se mantiene grande) */
+.ticket-num {
+  background: #111; color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 3mm 6mm;
+  border-radius: 6px;
+  margin-bottom: 3mm;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+
+/* ✅ CAJA DE DATOS DEL CLIENTE (nombre + teléfono + depto) */
+.ticket-info {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  width: 100%;
+  padding: 3mm 2mm;   /* un poco más de padding vertical para respirar */
+  margin-bottom: 3mm;
+}
+
+/* ✅ NOMBRE: más grande y visible */
+.ticket-nombre {
+  font-size: 16px;        /* antes 12px */
+  font-weight: 900;       /* antes 800 */
+  text-transform: uppercase;
+  margin-bottom: 1.5mm;
+  color: #111;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+
+/* ✅ TELÉFONO Y DEPARTAMENTO: más grandes y visibles */
+.ticket-dato {
+  font-size: 13px;        /* antes 10px */
+  font-weight: 600;       /* antes normal */
+  color: #222;
+  line-height: 1.4;
+}
+
+/* Sorteo y marca (más discretos, para no competir) */
+.ticket-sorteo {
+  font-size: 11px;        /* antes 9px */
+  font-weight: 800;
+  color: #007B4B;
+  text-transform: uppercase;
+  margin-top: auto;
+  letter-spacing: .3px;
+}
+.ticket-marca {
+  font-size: 9px;         /* antes 8px */
+  color: #9a9a9a;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-top: 1mm;
+}
+
+/* ====== IMPRESIÓN ====== */
+@page { size: A4 portrait; margin: 0; }
+@media print {
+  body { background: #fff; padding: 0; }
+  .toolbar { display: none !important; }
+  .hoja { box-shadow: none; margin: 0; max-width: none; width: 210mm; height: 297mm; }
+}

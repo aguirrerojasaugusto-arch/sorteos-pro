@@ -1,0 +1,23 @@
+{
+  "name": "sorteos-pro",
+  "version": "2.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "cloudinary": "^2.11.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.0",
+    "express": "^4.22.3"
+  },
+  "description": "API de validación de pagos Yape para sorteos",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

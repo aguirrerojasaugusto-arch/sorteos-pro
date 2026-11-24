@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juega y Gana</title>
+<link rel="stylesheet" href="/css/main.css?v=12">
+
+<!-- ✅ Estilos del modal de tickets: SCOPED a #modal-tickets (no afectan a ningún otro componente) -->
+<style>
+  #modal-tickets.modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(2px);
+    align-items: center; justify-content: center;
+    padding: 16px;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  #modal-tickets.modal-overlay.active { display: flex; }
+
+  #modal-tickets .modal-content {
+    width: min(680px, 94vw);
+    height: min(80vh, 640px);
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: mt-pop .18s ease-out;
+  }
+  @keyframes mt-pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ---- Header FIJO (no scrollea) ---- */
+  #modal-tickets .modal-header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #C8102E, #A30B24);
+    color: #fff;
+  }
+  #modal-tickets .modal-header h3 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: .2px; }
+  #modal-tickets .modal-close-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,.18); color: #fff;
+    font-size: 16px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  #modal-tickets .modal-close-btn:hover { background: rgba(255,255,255,.32); }
+
+  /* ---- Info del usuario FIJA (nombre + total, sin departamento) ---- */
+  #modal-tickets .modal-user-info {
+    flex: 0 0 auto;
+    display: grid; grid-template-columns: 1fr auto; gap: 12px;
+    padding: 14px 18px;
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+  }
+  #modal-tickets .info-card {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1px solid #ececec; border-radius: 12px;
+    padding: 8px 12px; min-width: 0;
+  }
+  #modal-tickets .info-card.highlight { background: #fff8e1; border-color: #ffe082; }
+  #modal-tickets .info-icon { font-size: 20px; line-height: 1; flex: 0 0 auto; }
+  #modal-tickets .info-text { display: flex; flex-direction: column; min-width: 0; }
+  #modal-tickets .info-text small { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+  #modal-tickets .info-text strong {
+    font-size: 15px; color: #222;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #modal-tickets .info-card.highlight strong { color: #C8102E; font-size: 1.25rem; }
+
+  /* ---- Tabla: ÚNICA zona con scroll ---- */
+  #modal-tickets .modal-table-container {
+    flex: 1 1 auto;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  #modal-tickets .modal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #modal-tickets .modal-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: #FFD400; color: #1a1a1a;
+    text-align: left; font-weight: 700; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .5px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.08);
+  }
+  #modal-tickets .modal-table tbody td {
+    padding: 9px 14px; border-bottom: 1px solid #f1f1f1; vertical-align: middle;
+  }
+  #modal-tickets .modal-table tbody tr:nth-child(even) { background: #fbfbfb; }
+  #modal-tickets .modal-table tbody tr:hover { background: #fff8e1; }
+  #modal-tickets .modal-table tbody td:first-child { font-weight: 600; color: #333; }
+  #modal-tickets .numeros-cell {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    color: #C8102E; letter-spacing: 1px; font-weight: 600;
+  }
+
+  /* ---- Footer ---- */
+  #modal-tickets .modal-footer {
+    flex: 0 0 auto;
+    padding: 12px 18px; border-top: 1px solid #eee; background: #fff;
+    display: flex; justify-content: flex-end;
+  }
+  #modal-tickets .btn-cerrar-modal {
+    border: none; background: #f1f1f1; color: #444;
+    padding: 8px 18px; border-radius: 10px; font-weight: 600; cursor: pointer;
+    transition: background .15s;
+  }
+  #modal-tickets .btn-cerrar-modal:hover { background: #e4e4e4; }
+
+  @media (max-width: 480px) {
+    #modal-tickets .modal-user-info { grid-template-columns: 1fr; }
+    #modal-tickets .modal-header h3 { font-size: .95rem; }
+  }
+</style>
+</head>
+<body class="kino-theme">
+
+  <!-- HEADER SUPERIOR -->
+  <header id="main-header" class="main-header">
+    <div class="header-content">
+      <div class="brand-section">
+        <div id="header-logo-container" class="brand-logo-container brand-logo-emoji">
+          <span class="brand-logo-emoji-text">🦋</span>
+        </div>
+        <h1 id="header-brand-name" class="brand-name">Sorteos Pro</h1>
+      </div>
+      <div class="contact-section">
+        <div class="contact-item" id="header-direccion-container">
+          <span class="icon">📍</span>
+          <span id="header-direccion">Cargando dirección...</span>
+        </div>
+        <div class="contact-item" id="header-telefono-container">
+          <span class="icon">📞</span>
+          <span id="header-telefono">Cargando teléfono...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SECCIÓN HERO -->
+  <section class="hero-kino">
+    <button class="carousel-arrow left">❮</button>
+    <button class="carousel-arrow right">❯</button>
+    
+    <div class="hero-kino-content">
+      <div class="carrusel-container" id="carrusel-container"></div>
+      
+      <a href="/sorteos.html" class="btn-juega-ahora-kino" style="text-decoration: none; display: inline-block; text-align: center;">JUEGA AHORA</a>
+      
+      <!-- Buscador Inteligente de Tickets -->
+      <div class="buscador-tickets-container">
+        <h3>🎫 Consulta tus Tickets</h3>
+        <div class="buscador-wrapper">
+          <input type="text" id="input-buscar-ticket" placeholder="Ingresa tu DNI, celular o nombre..." maxlength="50" autocomplete="off">
+          <button id="btn-buscar-ticket" onclick="buscarMisTickets()">Buscar</button>
+        </div>
+      </div>
+      
+      <div class="menu-bolas">
+        <div class="bola-logo" id="bola-1"></div>
+        <div class="bola-logo" id="bola-2"></div>
+        <div class="bola-logo" id="bola-3"></div>
+        <div class="bola-logo" id="bola-4"></div>
+        <div class="bola-logo" id="bola-5"></div>
+        <div class="bola-logo" id="bola-6"></div>
+        <div class="bola-logo" id="bola-7"></div>
+        <div class="bola-logo" id="bola-8"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER INFERIOR -->
+  <footer id="main-footer" class="main-footer">
+    <div class="footer-content">
+      <p class="footer-text">Síguenos en nuestras redes sociales</p>
+      <div class="social-links" id="social-links"></div>
+      <p class="footer-legal" id="footer-legal-text"></p>
+    </div>
+  </footer>
+
+  <!-- ✅ MODAL FLOTANTE DE TICKETS (compacto, header fijo, sin departamento) -->
+  <div id="modal-tickets" class="modal-overlay" onclick="cerrarModalSiEsFondo(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🎟️ Resumen de tus Tickets</h3>
+        <button class="modal-close-btn" onclick="cerrarModalTickets()" aria-label="Cerrar">✕</button>
+      </div>
+      
+      <div class="modal-user-info">
+        <div class="info-card">
+          <span class="info-icon">👤</span>
+          <div class="info-text">
+            <small>Nombre Completo</small>
+            <strong id="modal-nombre">Cargando...</strong>
+          </div>
+        </div>
+        <div class="info-card highlight">
+          <span class="info-icon">🎫</span>
+          <div class="info-text">
+            <small>Total Comprados</small>
+            <strong id="modal-total">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-table-container">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>Sorteo</th>
+              <th>Fecha de Compra</th>
+              <th>Números Jugados</th>
+            </tr>
+          </thead>
+          <tbody id="modal-tickets-body"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cerrar-modal" onclick="cerrarModalTickets()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/js/app.js?v=14"></script>
+</body>
+</html>

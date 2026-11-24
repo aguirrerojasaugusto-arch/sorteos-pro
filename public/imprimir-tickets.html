@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imprimir Tickets</title>
+<link rel="stylesheet" href="/css/print.css?v=2">
+</head>
+<body>
+
+  <!-- Barra superior (NO se imprime) -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <label for="filtro-sorteo">Filtrar por Sorteo:</label>
+      <select id="filtro-sorteo" onchange="aplicarFiltro()">
+        <option value="">Todos los sorteos</option>
+      </select>
+      <span class="contador" id="contador"></span>
+    </div>
+    <div class="toolbar-right">
+      <button class="btn-nav" onclick="cambiarHoja(-1)">‹</button>
+      <span class="paginador" id="paginador">Hoja 1 de 1</span>
+      <button class="btn-nav" onclick="cambiarHoja(1)">›</button>
+      <button class="btn-print" onclick="imprimirHojaActual()">🖨️ Imprimir Hoja Actual</button>
+      <button class="btn-print btn-all" onclick="imprimirTodos()">🖨️ Imprimir Todos</button>
+      <button class="btn-close" onclick="window.close()">Cerrar Pestaña</button>
+    </div>
+  </div>
+
+  <!-- Hojas A4 (8 tickets cada una) -->
+  <div id="hojas"></div>
+
+  <script>
+    const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const POR_HOJA = 8;
+
+    // Modo: 'todos' (desde menú) o 'venta' (desde sección Ventas)
+    const modo = new URLSearchParams(location.search).get('modo') || 'todos';
+    const key = modo === 'venta' ? 'ticketsVenta' : 'ticketsParaImprimir';
+
+    function leerTickets() {
+      try { return JSON.parse(sessionStorage.getItem(key) || '[]'); }
+      catch { return []; }
+    }
+
+    let ALL = leerTickets();
+    let FILTRADOS = ALL.slice();
+    let hojaActiva = 0;
+
+    function poblarFiltro() {
+      const sel = document.getElementById('filtro-sorteo');
+      const uniques = [...new Set(ALL.map(t => t.sorteo).filter(Boolean))].sort();
+      sel.innerHTML = '<option value="">Todos los sorteos</option>' +
+        uniques.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    }
+
+    function aplicarFiltro() {
+      const f = document.getElementById('filtro-sorteo').value;
+      FILTRADOS = f ? ALL.filter(t => t.sorteo === f) : ALL.slice();
+      hojaActiva = 0;
+      render();
+    }
+
+    function chunk(arr, n) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+      return out;
+    }
+
+    function ticketHTML(t) {
+      if (!t) return `<div class="ticket ticket-vacio"></div>`;
+      return `
+        <div class="ticket">
+          <div class="ticket-num">#${esc(t.codigo)}</div>
+          <div class="ticket-info">
+            <div class="ticket-nombre">${esc(t.nombre)}</div>
+            ${t.celular ? `<div class="ticket-dato">📞 ${esc(t.celular)}</div>` : ''}
+            ${t.departamento ? `<div class="ticket-dato">📍 ${esc(t.departamento)}</div>` : ''}
+          </div>
+          <div class="ticket-sorteo">${esc(t.sorteo)}</div>
+          <div class="ticket-marca">${esc(t.marca)}</div>
+        </div>`;
+    }
+
+    function render() {
+      const cont = document.getElementById('hojas');
+      const hojas = chunk(FILTRADOS, POR_HOJA);
+      if (hojas.length === 0) {
+        cont.innerHTML = `<div class="hoja"><div class="hoja-vacia">No hay tickets para imprimir.<br><small>Abre esta pestaña desde el menú <b>Imprimir Tickets</b> o desde <b>Venta de Tickets → Imprimir Esta Venta</b>.</small></div></div>`;
+        document.getElementById('paginador').textContent = 'Hoja 0 de 0';
+        document.getElementById('contador').textContent = '';
+        return;
+      }
+      if (hojaActiva >= hojas.length) hojaActiva = hojas.length - 1;
+
+      cont.innerHTML = hojas.map((h, hi) => {
+        const slots = [];
+        for (let i = 0; i < POR_HOJA; i++) slots.push(ticketHTML(h[i]));
+        return `<div class="hoja ${hi === hojaActiva ? 'active' : ''}">${slots.join('')}</div>`;
+      }).join('');
+
+      document.getElementById('paginador').textContent = `Hoja ${hojaActiva + 1} de ${hojas.length}`;
+      document.getElementById('contador').textContent = `(${FILTRADOS.length} ticket${FILTRADOS.length !== 1 ? 's' : ''})`;
+    }
+
+    function cambiarHoja(d) {
+      const total = Math.ceil(FILTRADOS.length / POR_HOJA) || 1;
+      hojaActiva = Math.min(Math.max(0, hojaActiva + d), total - 1);
+      render();
+    }
+
+    // Imprime SOLO la hoja que estás viendo (las demás están ocultas en @media print)
+    function imprimirHojaActual() {
+      document.body.classList.remove('print-all');
+      window.print();
+    }
+
+    // Imprime TODAS las hojas del filtro actual
+    function imprimirTodos() {
+      document.body.classList.add('print-all');
+      window.print();
+      setTimeout(() => document.body.classList.remove('print-all'), 500);
+    }
+
+    poblarFiltro();
+    render();
+  </script>
+</body>
+</html>

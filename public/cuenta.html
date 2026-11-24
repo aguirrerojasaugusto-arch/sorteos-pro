@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Mi Cuenta — Sorteos Pro</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Mi Cuenta</div>
+  <nav class="topnav">
+    <a href="/">Inicio</a>
+    <a href="#" id="btn-logout">Salir</a>
+  </nav>
+</header>
+<main style="max-width:900px;margin:2rem auto;padding:0 2rem;">
+  <section class="resumen">
+    <h2>Saldo</h2>
+    <p id="saldo-actual" style="font-size:2rem;color:var(--gold);font-weight:800;">S/ 0</p>
+    <div style="display:flex;gap:.5rem;margin-top:1rem;">
+      <input type="number" id="inp-recarga" placeholder="Monto a recargar" min="1">
+      <button id="btn-recargar" class="btn-primary">Recargar</button>
+    </div>
+  </section>
+  <section style="margin-top:2rem;">
+    <h2>Mis Tickets</h2>
+    <div id="lista-tickets"></div>
+  </section>
+  <section style="margin-top:2rem;">
+    <h2>Mis Premios</h2>
+    <div id="lista-premios"></div>
+  </section>
+  <section style="margin-top:2rem;">
+    <h2>Transacciones</h2>
+    <div id="lista-transacciones"></div>
+  </section>
+</main>
+<script src="/js/cuenta.js"></script>
+</body>
+</html>
