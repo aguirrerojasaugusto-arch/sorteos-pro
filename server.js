@@ -8,6 +8,7 @@ import { v2 as cloudinary } from 'cloudinary'; // Importamos Cloudinary arriba
 // Importaciones de tus archivos locales
 import { db, testConnection } from './src/config/database.js';
 import adminRoutes from './src/routes/admin.js';
+import { runMigrations } from './src/config/migrations.js'; // <--- NUEVO: Importamos migraciones
 
 // En ES Modules, __dirname no existe, así que lo creamos:
 const __filename = fileURLToPath(import.meta.url);
@@ -161,6 +162,20 @@ app.get('/api/health', (req, res) => {
         mensaje: 'API de sorteos funcionando',
         timestamp: new Date().toISOString()
     });
+});
+
+// ============================================
+// 5. RUTA SECRETA PARA CREAR TABLAS EN RENDER (Gratis)
+// ============================================
+app.get('/api/run-migrations', async (req, res) => {
+    try {
+        console.log('⏳ Iniciando migraciones desde la web...');
+        await runMigrations();
+        res.json({ status: 'ok', mensaje: '¡Tablas creadas exitosamente en Turso!' });
+    } catch (error) {
+        console.error('❌ Error ejecutando migraciones:', error);
+        res.status(500).json({ status: 'error', mensaje: error.message });
+    }
 });
 
 // ============================================
