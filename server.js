@@ -1,10 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path'); // <--- NUEVO: Importamos path
+const path = require('path'); 
 
 // IMPORTANTE: Ahora usamos la conexión real unificada
 const { db, testConnection } = require('./src/config/database.js');
+
+// 1. NUEVO: Importamos las rutas de administración
+const adminRoutes = require('./src/routes/admin.js'); 
 
 const app = express();
 
@@ -13,8 +16,11 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// <--- NUEVO: Servir los archivos estáticos de la carpeta 'public'
+// Servir los archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
+
+// 2. NUEVO: Montamos las rutas de admin en /api/admin
+app.use('/api/admin', adminRoutes); 
 
 // Configuración de Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
@@ -143,9 +149,9 @@ app.get('/api/tickets', async (req, res) => {
 });
 
 // ============================================
-// 4. Health check (MOVIDO A /api/health)
+// 4. Health check 
 // ============================================
-app.get('/api/health', (req, res) => { // <--- NUEVO: Cambiada la ruta de '/' a '/api/health'
+app.get('/api/health', (req, res) => { 
     res.json({
         status: 'ok',
         modo: process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)',
