@@ -14,9 +14,8 @@ import publicRoutes from './routes/public.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
-import uploadRoutes from './routes/upload.js';
+import uploadRoutes from './routes/upload.js'; // ✅ Importado
 
-// Configuración para usar __dirname en ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -25,9 +24,7 @@ const app = express();
 // ==========================================
 // MIDDLEWARES
 // ==========================================
-app.use(helmet({ 
-  contentSecurityPolicy: false
-})); 
+app.use(helmet({ contentSecurityPolicy: false })); 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -46,13 +43,13 @@ app.use('/api/', limiter);
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ==========================================
-// RUTAS DE LA API
+// RUTAS DE LA API (El orden importa)
 // ==========================================
 app.use('/api/public', publicRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/upload', uploadRoutes);
+app.use('/api/upload', uploadRoutes); // ✅ RUTA DE UPLOAD REGISTRADA AQUÍ
 
 // Manejo de errores global
 app.use((err, req, res, next) => {
@@ -61,22 +58,6 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// INICIALIZACIÓN DEL SERVIDOR
+// EXPORTAR APP (Para que server.js la use)
 // ==========================================
-async function startServer() {
-  try {
-    await testConnection();
-    await runMigrations();
-
-    const PORT = process.env.PORT || 8080;
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-      console.log(`🔗 Panel Admin: http://localhost:${PORT}/admin.html`);
-    });
-  } catch (error) {
-    console.error('❌ Error al iniciar la app:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
+export { app, testConnection, runMigrations };
