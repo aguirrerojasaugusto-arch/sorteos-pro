@@ -2,6 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+// IMPORTANTE: Ahora usamos la conexión real unificada
+const { db, testConnection } = require('./src/config/database.js');
+
 const app = express();
 
 // Middlewares
@@ -9,81 +12,15 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ============================================
-// MODO DE BASE DE DATOS: Turso o Memoria
-// ============================================
-let db = null;
-let usandoTurso = false;
-
-if (process.env.TURSO_URL && process.env.TURSO_URL !== 'undefined' && process.env.TURSO_URL.trim() !== '') {
-    // Modo producción: Turso
-    const { createClient } = require('@libsql/client');
-    db = createClient({
-        url: process.env.TURSO_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-    });
-    usandoTurso = true;
-    console.log('🗄️  Conectado a Turso (producción)');
-} else {
-    // Modo local: Base de datos en memoria
-    console.log('💾 Usando base de datos en memoria (modo local)');
-    let ticketsPendientes = [];
-    let pagosValidados = [];
-
-    db = {
-        async execute({ sql, args }) {
-            if (sql.includes('INSERT')) {
-                const ticket = {
-                    id: args[0],
-                    telefono: args[1],
-                    nombre_cliente: args[2],
-                    cantidad: args[3],
-                    monto: args[4],
-                    numero_sorteo: args[5],
-                    estado: 'pendiente',
-                    creado_en: new Date().toISOString()
-                };
-                ticketsPendientes.push(ticket);
-                return { rows: [] };
-            }
-            if (sql.includes('UPDATE')) {
-                const id = args[3];
-                const ticket = ticketsPendientes.find(t => t.id === id);
-                if (ticket) {
-                    ticket.estado = 'pagado';
-                    ticket.codigo_yape = args[0];
-                    ticket.nombre_pagador = args[1];
-                    ticket.fecha_pago = args[2];
-                    pagosValidados.push(ticket);
-                    ticketsPendientes = ticketsPendientes.filter(t => t.id !== id);
-                }
-                return { rows: [] };
-            }
-            if (sql.includes("estado = 'pendiente'") && !sql.includes('monto =')) {
-                return { rows: ticketsPendientes };
-            }
-            if (sql.includes('monto = ?')) {
-                const monto = args[0];
-                const encontrados = ticketsPendientes.filter(t => t.monto === monto);
-                return { rows: encontrados };
-            }
-            if (sql.includes("estado = 'pagado'")) {
-                return { rows: pagosValidados.slice(0, 50) };
-            }
-            return { rows: [] };
-        }
-    };
-}
-
-// Configuración de Cloudinary (solo si hay credenciales)
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined' && process.env.CLOUDINARY_CLOUD_NAME.trim() !== '') {
+// Configuración de Cloudinary
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
     const cloudinary = require('cloudinary').v2;
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         api_key: process.env.CLOUDINARY_API_KEY,
         api_secret: process.env.CLOUDINARY_API_SECRET,
     });
-    console.log('☁️  Cloudinary configurado');
+    console.log('☁️ Cloudinary configurado');
 }
 
 // Middleware de seguridad
@@ -166,7 +103,7 @@ app.post('/api/crear-ticket', async (req, res) => {
             return res.status(400).json({ status: 'error', mensaje: 'Faltan datos' });
         }
 
-        const monto = cantidad * 5;
+        const monto = cantidad * 5; // Ajusta este multiplicador si el precio del ticket cambia
         const id = Date.now().toString();
         const numero_sorteo = Math.floor(1000 + Math.random() * 9000);
 
@@ -207,17 +144,21 @@ app.get('/api/tickets', async (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         status: 'ok',
-        modo: usandoTurso ? 'PRODUCCIÓN (Turso)' : 'LOCAL (Memoria)',
+        modo: process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)',
         mensaje: 'API de sorteos funcionando',
         timestamp: new Date().toISOString()
     });
 });
 
 // ============================================
-// INICIAR
+// INICIAR SERVIDOR
 // ============================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    console.log(`📡 Modo: ${usandoTurso ? 'PRODUCCIÓN' : 'LOCAL'}`);
+
+// Primero probamos la conexión, y luego arrancamos el servidor
+testConnection().then(() => {
+    app.listen(PORT, () => {
+        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+        console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
+    });
 });
