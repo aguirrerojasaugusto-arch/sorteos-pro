@@ -1,33 +1,25 @@
-import 'dotenv/config'; // Nueva forma de cargar dotenv
+import 'dotenv/config'; 
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { v2 as cloudinary } from 'cloudinary'; // Importamos Cloudinary arriba
+import { v2 as cloudinary } from 'cloudinary'; 
 
-// Importaciones de tus archivos locales
 import { db, testConnection } from './src/config/database.js';
 import adminRoutes from './src/routes/admin.js';
-import { runMigrations } from './src/config/migrations.js'; // <--- NUEVO: Importamos migraciones
+import { runMigrations } from './src/config/migrations.js'; 
 
-// En ES Modules, __dirname no existe, así que lo creamos:
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middlewares
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Servir los archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
-
-// MONTAMOS LAS RUTAS DE ADMINISTRACIÓN
 app.use('/api/admin', adminRoutes);
 
-// Configuración de Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -37,7 +29,6 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== '
     console.log('☁️ Cloudinary configurado');
 }
 
-// Middleware de seguridad
 const verifyApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     if (process.env.API_KEY && apiKey !== process.env.API_KEY) {
@@ -47,7 +38,7 @@ const verifyApiKey = (req, res, next) => {
 };
 
 // ============================================
-// 1. Validar pago Yape (Sincronizado con public.js)
+// 1. Validar pago Yape (CON VALIDACIÓN DE MONTO)
 // ============================================
 app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
     try {
@@ -77,7 +68,7 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 
         console.log(`✅ Pago detectado: ${nombre} - S/.${monto} - Código: ${codigo}`);
 
-        // ✅ SEGURIDAD: Verificar si el código de Yape ya fue usado antes (evita duplicados)
+        // 1. Evitar códigos duplicados
         const existe = await db.execute({
             sql: "SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1",
             args: [codigo]
@@ -86,7 +77,7 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
             return res.json({ status: 'revisar', mensaje: 'Este código de Yape ya fue utilizado' });
         }
 
-        // ✅ CORREGIDO: Buscamos usando 'total_pagado' y verificamos que no tenga comprobante_hash (esté pendiente)
+        // 2. Buscar coincidencia EXACTA de monto
         const result = await db.execute({
             sql: "SELECT * FROM tickets WHERE total_pagado = ? AND comprobante_hash IS NULL ORDER BY creado_en ASC LIMIT 1",
             args: [monto],
@@ -95,7 +86,6 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
         if (result.rows.length > 0) {
             const ticket = result.rows[0];
 
-            // ✅ CORREGIDO: Guardamos el código Yape en comprobante_hash y marcamos como pagado
             await db.execute({
                 sql: `UPDATE tickets SET comprobante_hash = ? WHERE id = ?`,
                 args: [codigo, ticket.id],
@@ -109,8 +99,28 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
                 mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
             });
         } else {
-            console.log(`⚠️ Pago de S/.${monto} sin ticket pendiente`);
-            res.json({ status: 'revisar', mensaje: 'Pago recibido pero no hay ticket pendiente' });
+            // 3. NUEVO: Si no hay coincidencia exacta, buscar si esta persona tiene tickets pendientes
+            // Usamos LIKE por si el nombre en Yape viene con ligeras diferencias (ej. "JUAN PEREZ" vs "Juan Perez")
+            const nameCheck = await db.execute({
+                sql: "SELECT * FROM tickets WHERE cliente_nombre LIKE ? AND comprobante_hash IS NULL LIMIT 1",
+                args: [`%${nombre}%`]
+            });
+
+            if (nameCheck.rows.length > 0) {
+                const expectedTicket = nameCheck.rows[0];
+                console.log(`⚠️ Monto incorrecto. ${nombre} pagó S/.${monto} pero su ticket es de S/.${expectedTicket.total_pagado}`);
+                
+                res.json({ 
+                    status: 'revisar', 
+                    mensaje: `El monto pagado (S/.${monto}) no coincide con el valor de tu ticket (S/.${expectedTicket.total_pagado}). Por favor, realiza el pago exacto.` 
+                });
+            } else {
+                console.log(`⚠️ Pago de S/.${monto} de ${nombre} sin ticket pendiente`);
+                res.json({ 
+                    status: 'revisar', 
+                    mensaje: `Pago recibido de S/.${monto} por ${nombre}, pero no se encontró un ticket pendiente con ese monto.` 
+                });
+            }
         }
     } catch (error) {
         console.error('Error:', error);
@@ -119,7 +129,7 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 });
 
 // ============================================
-// 2. Crear ticket manual (Para pruebas desde Postman/API)
+// 2. Crear ticket manual
 // ============================================
 app.post('/api/crear-ticket', async (req, res) => {
     try {
@@ -131,7 +141,6 @@ app.post('/api/crear-ticket', async (req, res) => {
         const monto = cantidad * 5;
         const codigo_ticket = Math.floor(10000 + Math.random() * 90000).toString(); 
 
-        // ✅ CORREGIDO: Adaptado a la estructura real de tu base de datos
         await db.execute({
             sql: `INSERT INTO tickets (codigo_ticket, cliente_nombre, cliente_telefono, cantidad_tickets, total_pagado) 
                   VALUES (?, ?, ?, ?, ?)`,
@@ -151,11 +160,10 @@ app.post('/api/crear-ticket', async (req, res) => {
 });
 
 // ============================================
-// 3. Ver tickets (Panel de admin)
+// 3. Ver tickets 
 // ============================================
 app.get('/api/tickets', async (req, res) => {
     try {
-        // ✅ CORREGIDO: Pendiente significa que comprobante_hash es NULL
         const pendientes = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NULL");
         const validados = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NOT NULL");
         res.json({ pendientes: pendientes.rows, validados: validados.rows });
@@ -175,22 +183,6 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-
-// ============================================
-// 5. RUTA SECRETA PARA CREAR TABLAS (DESACTIVADA POR SEGURIDAD)
-// ============================================
-/*
-app.get('/api/run-migrations', async (req, res) => {
-    try {
-        console.log('⏳ Iniciando migraciones desde la web...');
-        await runMigrations();
-        res.json({ status: 'ok', mensaje: '¡Tablas creadas exitosamente en Turso!' });
-    } catch (error) {
-        console.error('❌ Error ejecutando migraciones:', error);
-        res.status(500).json({ status: 'error', mensaje: error.message });
-    }
-});
-*/
 
 // ============================================
 // INICIAR SERVIDOR

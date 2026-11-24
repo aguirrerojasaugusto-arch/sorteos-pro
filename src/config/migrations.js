@@ -62,7 +62,18 @@ export async function runMigrations() {
     `CREATE TABLE IF NOT EXISTS carrusel (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS bolas_logos (posicion INTEGER PRIMARY KEY, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS banners (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS promos_laterales (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL, fecha TEXT NOT NULL DEFAULT '')`
+    `CREATE TABLE IF NOT EXISTS promos_laterales (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL, fecha TEXT NOT NULL DEFAULT '')`,
+
+    // ✅ NUEVO: tabla de comprobantes (1 fila por compra, no por ticket).
+    //    Es lo que cierra la race de "mismo comprobante usado 2 veces".
+    `CREATE TABLE IF NOT EXISTS comprobantes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      comprobante_hash TEXT NOT NULL,
+      usuario_id INTEGER,
+      cliente_dni TEXT,
+      monto_total REAL NOT NULL DEFAULT 0,
+      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`
   ];
 
   try {
@@ -111,12 +122,56 @@ export async function runMigrations() {
       }
     }
 
-    // ✅ Crear índice para búsquedas rápidas de duplicados
+    // ✅ Índice no-único (ya existía) para búsquedas rápidas
     try {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_comprobante_hash ON tickets(comprobante_hash)');
     } catch (e) {
       console.warn('   ⚠️  No se pudo crear el índice de hash:', e.message);
     }
+
+    // ✅ NUEVO: UNIQUE en comprobantes → cierra race de duplicados.
+    try {
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_comprobantes_hash ON comprobantes(comprobante_hash)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_comprobantes_dni ON comprobantes(cliente_dni)');
+    } catch (e) {
+      console.warn('   ⚠️  No se pudo crear UNIQUE en comprobantes:', e.message);
+    }
+
+    // ✅ NUEVO: backfill de comprobantes existentes (los que ya están en tickets).
+    //    INSERT OR IGNORE: si ya hay hash en comprobantes, no falla.
+    try {
+      await db.execute(`
+        INSERT OR IGNORE INTO comprobantes (comprobante_hash, monto_total)
+        SELECT comprobante_hash, SUM(total_pagado)
+        FROM tickets
+        WHERE comprobante_hash IS NOT NULL AND comprobante_hash != ''
+        GROUP BY comprobante_hash
+      `);
+    } catch (e) {
+      console.warn('   ⚠️  Backfill de comprobantes falló:', e.message);
+    }
+
+    // ✅ NUEVO: UNIQUE en codigo_ticket → cierra race de códigos.
+    //    Solo se crea si NO hay duplicados actuales (o fallaría).
+    try {
+      const dup = await db.execute(`
+        SELECT codigo_ticket, COUNT(*) AS cnt
+        FROM tickets
+        GROUP BY codigo_ticket
+        HAVING cnt > 1
+      `);
+      if (dup.rows.length === 0) {
+        await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_codigo_ticket ON tickets(codigo_ticket)');
+      } else {
+        console.warn(`   ⚠️  Hay ${dup.rows.length} codigo_ticket duplicados. NO se crea UNIQUE index. Revisar manualmente.`);
+        console.warn('   Codigos duplicados:', dup.rows.slice(0, 10));
+      }
+    } catch (e) {
+      console.warn('   ⚠️  No se pudo crear UNIQUE en codigo_ticket:', e.message);
+    }
+
+    // (resto del archivo igual: UPDATEs de users, normalización de promos_laterales,
+    //  inserts de settings, sorteo por defecto, etc.)
 
     try {
       await db.execute(`

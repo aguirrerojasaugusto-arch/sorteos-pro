@@ -85,16 +85,20 @@ export class AppRepository {
     }
   }
 
-  async _getTicketColumns() {
+  // ✅ Cambios: todos los métodos de tickets aceptan `exec` opcional
+  //    para poder correr dentro de una transacción.
+  async _getTicketColumns(exec = null) {
     if (this._ticketCols) return this._ticketCols;
-    const result = await this._db.execute('PRAGMA table_info(tickets)');
+    const e = exec || this._db;
+    const result = await e.execute('PRAGMA table_info(tickets)');
     this._ticketCols = result.rows;
     console.log('📋 Esquema real de tickets:', this._ticketCols.map(c => `${c.name}${c.notnull ? ' (NOT NULL)' : ''}`).join(', '));
     return this._ticketCols;
   }
 
-  async createTicket(data) {
-    const cols = await this._getTicketColumns();
+  async createTicket(data, exec = null) {
+    const e = exec || this._db;
+    const cols = await this._getTicketColumns(e);
     const mapping = {
       codigo_ticket: data.codigo_ticket,
       sorteo_id: data.sorteo_id ?? null,
@@ -106,7 +110,7 @@ export class AppRepository {
       cantidad_tickets: data.cantidad_sorteos ?? data.cantidad_tickets ?? 1,
       total_pagado: data.total_pagado ?? 0,
       comprobante_url: data.comprobante_url ?? null,
-      comprobante_hash: data.comprobante_hash ?? null, // ✅ NUEVO
+      comprobante_hash: data.comprobante_hash ?? null,
       jugadas_json: data.jugadas_json ?? '[]',
       si_o_si: data.si_o_si ?? 0,
       boliyapa_numero: data.boliyapa_numero ?? null,
@@ -130,27 +134,36 @@ export class AppRepository {
     }
 
     const sql = `INSERT INTO tickets (${insertCols.join(', ')}) VALUES (${insertCols.map(() => '?').join(', ')}) RETURNING *`;
-    const result = await this._db.execute({ sql, args });
+    const result = await e.execute({ sql, args });
     return result.rows[0];
   }
 
-  async existeCodigoTicket(codigo) {
-    const result = await this._db.execute({ sql: 'SELECT 1 FROM tickets WHERE codigo_ticket = ? LIMIT 1', args: [codigo] });
+  async existeCodigoTicket(codigo, exec = null) {
+    const e = exec || this._db;
+    const result = await e.execute({ sql: 'SELECT 1 FROM tickets WHERE codigo_ticket = ? LIMIT 1', args: [codigo] });
     return result.rows.length > 0;
   }
 
-  // ✅ NUEVO: Verificar si el hash del comprobante ya existe
-  async existeComprobanteHash(hash) {
+  // ✅ Ahora consulta la tabla `comprobantes` (1 fila por compra).
+  //    Si la tabla aún no existe (migración pendiente), retorna false para no romper nada.
+  async existeComprobanteHash(hash, exec = null) {
     if (!hash) return false;
-    const result = await this._db.execute({ 
-      sql: 'SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1', 
-      args: [hash] 
-    });
-    return result.rows.length > 0;
+    const e = exec || this._db;
+    try {
+      const result = await e.execute({
+        sql: 'SELECT 1 FROM comprobantes WHERE comprobante_hash = ? LIMIT 1',
+        args: [hash]
+      });
+      return result.rows.length > 0;
+    } catch (err) {
+      if (/no such table/i.test(String(err.message || ''))) return false;
+      throw err;
+    }
   }
 
-  async getUltimoCodigoNumeric() {
-    const result = await this._db.execute({
+  async getUltimoCodigoNumeric(exec = null) {
+    const e = exec || this._db;
+    const result = await e.execute({
       sql: `SELECT codigo_ticket FROM tickets WHERE LENGTH(codigo_ticket) = 5 ORDER BY codigo_ticket DESC LIMIT 1`
     });
     return result.rows[0] ? result.rows[0].codigo_ticket : null;
