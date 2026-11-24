@@ -7,6 +7,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 import { db, testConnection } from './src/config/database.js';
 import adminRoutes from './src/routes/admin.js';
+import uploadRoutes from './src/routes/upload.js'; // ✅ 1. IMPORTAMOS LA RUTA DE UPLOAD
 import { runMigrations } from './src/config/migrations.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,8 +19,16 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/api/admin', adminRoutes);
 
+// ============================================
+// RUTAS DE LA API
+// ============================================
+app.use('/api/admin', adminRoutes);
+app.use('/api/upload', uploadRoutes); // ✅ 2. ACTIVAMOS LA RUTA DE UPLOAD (¡Adiós 404!)
+
+// ============================================
+// CONFIGURACIÓN CLOUDINARY
+// ============================================
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -38,7 +47,7 @@ const verifyApiKey = (req, res, next) => {
 };
 
 // ============================================
-// 1. Validar pago Yape (CON VALIDACIÓN DE MONTO)
+// 1. Validar pago Yape (TU LÓGICA ORIGINAL INTACTA)
 // ============================================
 app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
     try {
@@ -68,7 +77,6 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 
         console.log(`✅ Pago detectado: ${nombre} - S/.${monto} - Código: ${codigo}`);
 
-        // 1. Evitar códigos duplicados
         const existe = await db.execute({
             sql: "SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1",
             args: [codigo]
@@ -77,7 +85,6 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
             return res.json({ status: 'revisar', mensaje: 'Este código de Yape ya fue utilizado' });
         }
 
-        // 2. Buscar coincidencia EXACTA de monto
         const result = await db.execute({
             sql: "SELECT * FROM tickets WHERE total_pagado = ? AND comprobante_hash IS NULL ORDER BY creado_en ASC LIMIT 1",
             args: [monto],
@@ -85,7 +92,6 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 
         if (result.rows.length > 0) {
             const ticket = result.rows[0];
-
             await db.execute({
                 sql: `UPDATE tickets SET comprobante_hash = ? WHERE id = ?`,
                 args: [codigo, ticket.id],
@@ -99,8 +105,6 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
                 mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
             });
         } else {
-            // 3. NUEVO: Si no hay coincidencia exacta, buscar si esta persona tiene tickets pendientes
-            // Usamos LIKE por si el nombre en Yape viene con ligeras diferencias (ej. "JUAN PEREZ" vs "Juan Perez")
             const nameCheck = await db.execute({
                 sql: "SELECT * FROM tickets WHERE cliente_nombre LIKE ? AND comprobante_hash IS NULL LIMIT 1",
                 args: [`%${nombre}%`]
@@ -129,7 +133,7 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 });
 
 // ============================================
-// 2. Crear ticket manual
+// 2. Crear ticket manual (TU LÓGICA ORIGINAL INTACTA)
 // ============================================
 app.post('/api/crear-ticket', async (req, res) => {
     try {
@@ -160,7 +164,7 @@ app.post('/api/crear-ticket', async (req, res) => {
 });
 
 // ============================================
-// 3. Ver tickets 
+// 3. Ver tickets (TU LÓGICA ORIGINAL INTACTA)
 // ============================================
 app.get('/api/tickets', async (req, res) => {
     try {
@@ -173,7 +177,7 @@ app.get('/api/tickets', async (req, res) => {
 });
 
 // ============================================
-// 4. Health check 
+// 4. Health check (TU LÓGICA ORIGINAL INTACTA)
 // ============================================
 app.get('/api/health', (req, res) => { 
     res.json({
@@ -190,9 +194,11 @@ app.get('/api/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 testConnection().then(() => {
-    app.listen(PORT, () => {
-        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-        console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
-        console.log(`✅ Rutas de administración montadas correctamente en /api/admin`);
+    runMigrations().then(() => {
+        app.listen(PORT, () => {
+            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+            console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
+            console.log(`✅ Rutas montadas: /api/admin, /api/upload, /api/validar-pago-yape`);
+        });
     });
 });
