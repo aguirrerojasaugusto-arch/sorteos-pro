@@ -2,7 +2,7 @@ import { db } from './database.js';
 
 export async function runMigrations() {
   console.log('⏳ Verificando tablas y ejecutando migraciones...');
-
+  
   const queries = [
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,12 +13,10 @@ export async function runMigrations() {
       saldo REAL DEFAULT 0.0,
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
-
     `CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
     )`,
-
     `CREATE TABLE IF NOT EXISTS sorteos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT NOT NULL,
@@ -37,7 +35,6 @@ export async function runMigrations() {
       moneda TEXT DEFAULT 'S/',
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
-
     `CREATE TABLE IF NOT EXISTS tickets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sorteo_id INTEGER,
@@ -58,20 +55,25 @@ export async function runMigrations() {
       FOREIGN KEY(sorteo_id) REFERENCES sorteos(id),
       FOREIGN KEY(user_id) REFERENCES users(id)
     )`,
-
     `CREATE TABLE IF NOT EXISTS carrusel (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS bolas_logos (posicion INTEGER PRIMARY KEY, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS banners (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS promos_laterales (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL, fecha TEXT NOT NULL DEFAULT '')`,
-
-    // ✅ NUEVO: tabla de comprobantes (1 fila por compra, no por ticket).
-    //    Es lo que cierra la race de "mismo comprobante usado 2 veces".
     `CREATE TABLE IF NOT EXISTS comprobantes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       comprobante_hash TEXT NOT NULL,
       usuario_id INTEGER,
       cliente_dni TEXT,
       monto_total REAL NOT NULL DEFAULT 0,
+      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    // ✅ NUEVO: Tabla para logs de webhook de Yape
+    `CREATE TABLE IF NOT EXISTS yape_webhook_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monto_recibido REAL NOT NULL,
+      sms_body TEXT,
+      ticket_id INTEGER,
+      estado TEXT DEFAULT 'pendiente',
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
@@ -109,7 +111,13 @@ export async function runMigrations() {
       `ALTER TABLE banners ADD COLUMN url_imagen TEXT`,
       `ALTER TABLE carrusel ADD COLUMN url_imagen TEXT`,
       `ALTER TABLE users ADD COLUMN telefono TEXT`,
-      `ALTER TABLE users ADD COLUMN departamento TEXT`
+      `ALTER TABLE users ADD COLUMN departamento TEXT`,
+      // ✅ NUEVAS COLUMNAS para flujo Yape con centavos mágicos
+      `ALTER TABLE tickets ADD COLUMN monto_yape_exacto REAL`,
+      `ALTER TABLE tickets ADD COLUMN estado_pago TEXT DEFAULT 'pendiente'`,
+      `ALTER TABLE tickets ADD COLUMN captura_yape_url TEXT`,
+      `ALTER TABLE tickets ADD COLUMN sms_codigo_operacion TEXT`,
+      `ALTER TABLE tickets ADD COLUMN webhook_recibido_at DATETIME`
     ];
 
     for (const sql of alterQueries) {
@@ -122,14 +130,13 @@ export async function runMigrations() {
       }
     }
 
-    // ✅ Índice no-único (ya existía) para búsquedas rápidas
+    // ✅ Índices para búsquedas rápidas
     try {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_comprobante_hash ON tickets(comprobante_hash)');
     } catch (e) {
       console.warn('   ⚠️  No se pudo crear el índice de hash:', e.message);
     }
 
-    // ✅ NUEVO: UNIQUE en comprobantes → cierra race de duplicados.
     try {
       await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_comprobantes_hash ON comprobantes(comprobante_hash)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_comprobantes_dni ON comprobantes(cliente_dni)');
@@ -137,22 +144,14 @@ export async function runMigrations() {
       console.warn('   ⚠️  No se pudo crear UNIQUE en comprobantes:', e.message);
     }
 
-    // ✅ NUEVO: backfill de comprobantes existentes (los que ya están en tickets).
-    //    INSERT OR IGNORE: si ya hay hash en comprobantes, no falla.
+    // ✅ NUEVO: Índice para búsqueda por monto_yape_exacto
     try {
-      await db.execute(`
-        INSERT OR IGNORE INTO comprobantes (comprobante_hash, monto_total)
-        SELECT comprobante_hash, SUM(total_pagado)
-        FROM tickets
-        WHERE comprobante_hash IS NOT NULL AND comprobante_hash != ''
-        GROUP BY comprobante_hash
-      `);
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_monto_yape ON tickets(monto_yape_exacto)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_estado_pago ON tickets(estado_pago)');
     } catch (e) {
-      console.warn('   ⚠️  Backfill de comprobantes falló:', e.message);
+      console.warn('   ⚠️  No se pudo crear índices de Yape:', e.message);
     }
 
-    // ✅ NUEVO: UNIQUE en codigo_ticket → cierra race de códigos.
-    //    Solo se crea si NO hay duplicados actuales (o fallaría).
     try {
       const dup = await db.execute(`
         SELECT codigo_ticket, COUNT(*) AS cnt
@@ -163,15 +162,11 @@ export async function runMigrations() {
       if (dup.rows.length === 0) {
         await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_codigo_ticket ON tickets(codigo_ticket)');
       } else {
-        console.warn(`   ⚠️  Hay ${dup.rows.length} codigo_ticket duplicados. NO se crea UNIQUE index. Revisar manualmente.`);
-        console.warn('   Codigos duplicados:', dup.rows.slice(0, 10));
+        console.warn(`   ⚠️  Hay ${dup.rows.length} codigo_ticket duplicados.`);
       }
     } catch (e) {
       console.warn('   ⚠️  No se pudo crear UNIQUE en codigo_ticket:', e.message);
     }
-
-    // (resto del archivo igual: UPDATEs de users, normalización de promos_laterales,
-    //  inserts de settings, sorteo por defecto, etc.)
 
     try {
       await db.execute(`
@@ -204,10 +199,10 @@ export async function runMigrations() {
         console.log('🔧 Normalizando promos_laterales.fecha → NOT NULL DEFAULT \'\'');
         await db.execute(
           `CREATE TABLE promos_laterales__new (
-             id INTEGER PRIMARY KEY AUTOINCREMENT,
-             url_imagen TEXT NOT NULL,
-             fecha TEXT NOT NULL DEFAULT ''
-           )`
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url_imagen TEXT NOT NULL,
+            fecha TEXT NOT NULL DEFAULT ''
+          )`
         );
         await db.execute(
           `INSERT INTO promos_laterales__new (id, url_imagen, fecha)

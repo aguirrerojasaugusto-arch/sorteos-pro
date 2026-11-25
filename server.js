@@ -7,9 +7,9 @@ import { v2 as cloudinary } from 'cloudinary';
 import { db, testConnection } from './src/config/database.js';
 import adminRoutes from './src/routes/admin.js';
 import uploadRoutes from './src/routes/upload.js';
-import publicRoutes from './src/routes/public.js';   // ✅ NUEVO
-import authRoutes from './src/routes/auth.js';       // ✅ NUEVO
-import userRoutes from './src/routes/user.js';       // ✅ NUEVO
+import publicRoutes from './src/routes/public.js';
+import authRoutes from './src/routes/auth.js';
+import userRoutes from './src/routes/user.js';
 import { runMigrations } from './src/config/migrations.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,188 +22,164 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ============================================
-// RUTAS DE LA API
-// ============================================
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/public', publicRoutes);   // ✅ NUEVO: rutas del cliente
-app.use('/api/auth', authRoutes);       // ✅ NUEVO: autenticación
-app.use('/api/user', userRoutes);       // ✅ NUEVO: gestión de usuarios
+app.use('/api/public', publicRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 
-// ============================================
-// CONFIGURACIÓN CLOUDINARY
-// ============================================
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== 'undefined') {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    api_secret: process.env.CLOUDINARY_API_SECRET
   });
   console.log('☁️ Cloudinary configurado');
 }
 
+// ✅ Verificación de API Key para el webhook
 const verifyApiKey = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'];
-  if (process.env.API_KEY && apiKey !== process.env.API_KEY) {
-    return res.status(401).json({ status: 'error', mensaje: 'No autorizado' });
+  const expectedKey = process.env.API_KEY;
+  if (!expectedKey) return next(); // Si no hay API_KEY configurada, permitir (desarrollo)
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (!apiKey || apiKey !== expectedKey) {
+    return res.status(401).json({ status: 'error', mensaje: 'No autorizado.' });
   }
   next();
 };
 
 // ============================================
-// 1. Validar pago Yape
+// ✅ Webhook para MacroDroid (MEJORADO)
 // ============================================
 app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
   try {
-    const sms_body_raw = req.query.sms_body || req.body.sms_body || req.body.body || req.body.mensaje || "";
-    const sender = req.query.sender || req.body.sender || "Desconocido";
-    const fecha = req.query.fecha || req.body.fecha || new Date().toISOString();
-
+    const sms_body_raw = req.query.sms_body || req.body.sms_body || req.body.body || req.body.mensaje || '';
     const sms_body = String(sms_body_raw).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
 
     if (!sms_body) {
       return res.status(400).json({ status: 'error', mensaje: 'Falta el contenido del SMS' });
     }
 
-    console.log('📩 SMS recibido:', sms_body);
+    console.log('📩 SMS recibido de MacroDroid:', sms_body);
 
-    const regex = /Recibistes?\s+S\/\.?\s*([0-9.]+)\s+de\s+(.+?)[\.\s]+(?:C[oó]digo|Cod|Code)[:\s]*([A-Z0-9]+)/i;
-    const match = sms_body.match(regex);
+    // Regex para capturar el monto y código de operación
+    const regexMonto = /S\/\.?\s*([0-9.,]+)/i;
+    const regexCodigo = /(?:C[oó]digo|Cod|Code|Operaci[oó]n)[:\s]*([A-Z0-9]+)/i;
+    const matchMonto = sms_body.match(regexMonto);
+    const matchCodigo = sms_body.match(regexCodigo);
 
-    if (!match) {
-      console.log('❌ Formato de SMS no reconocido');
-      return res.json({ status: 'error', mensaje: 'Formato de SMS no reconocido' });
+    if (!matchMonto) {
+      return res.json({ status: 'error', mensaje: 'No se detectó un monto en el SMS' });
     }
 
-    const monto = parseFloat(match[1]);
-    const nombre = match[2].replace(/[\.\s]+$/, '').trim();
-    const codigo = match[3];
+    const montoStr = matchMonto[1].replace(',', '.');
+    const monto = parseFloat(montoStr);
+    const codigo = matchCodigo ? matchCodigo[1] : `YAPE_${Date.now()}`;
 
-    console.log(`✅ Pago detectado: ${nombre} - S/.${monto} - Código: ${codigo}`);
+    console.log(`✅ Pago detectado: S/.${monto} - Código: ${codigo}`);
 
-    const existe = await db.execute({
-      sql: "SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1",
+    // 1. Evitar procesar el mismo SMS dos veces (por código de operación)
+    const existeCodigo = await db.execute({
+      sql: 'SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1',
       args: [codigo]
     });
-    if (existe.rows.length > 0) {
+    if (existeCodigo.rows.length > 0) {
       return res.json({ status: 'revisar', mensaje: 'Este código de Yape ya fue utilizado' });
     }
 
+    // 2. Buscar el ticket pendiente con el monto exacto (incluye centavos mágicos)
     const result = await db.execute({
-      sql: "SELECT * FROM tickets WHERE total_pagado = ? AND comprobante_hash IS NULL ORDER BY creado_en ASC LIMIT 1",
-      args: [monto],
+      sql: `SELECT * FROM tickets
+            WHERE monto_exacto = ?
+              AND estado_pago = 'pendiente'
+              AND (expires_at IS NULL OR expires_at > datetime('now'))
+            ORDER BY creado_en ASC
+            LIMIT 1`,
+      args: [monto]
     });
 
-    if (result.rows.length > 0) {
-      const ticket = result.rows[0];
+    if (result.rows.length === 0) {
+      // Log del intento fallido
       await db.execute({
-        sql: `UPDATE tickets SET comprobante_hash = ? WHERE id = ?`,
-        args: [codigo, ticket.id],
+        sql: `INSERT INTO yape_webhook_logs (sms_body, monto_detectado, codigo_operacion, estado)
+              VALUES (?, ?, ?, ?)`,
+        args: [sms_body, monto, codigo, 'no_encontrado']
       });
-
-      console.log(`🎉 Ticket #${ticket.codigo_ticket} APROBADO para ${nombre}`);
-
-      res.json({
-        status: 'aprobado',
-        numero_ticket: ticket.codigo_ticket,
-        mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
+      console.log(`⚠️ Pago de S/.${monto} sin ticket pendiente`);
+      return res.json({
+        status: 'revisar',
+        mensaje: `Pago recibido de S/.${monto}, pero no hay ticket pendiente con ese monto exacto.`
       });
-    } else {
-      const nameCheck = await db.execute({
-        sql: "SELECT * FROM tickets WHERE cliente_nombre LIKE ? AND comprobante_hash IS NULL LIMIT 1",
-        args: [`%${nombre}%`]
-      });
-
-      if (nameCheck.rows.length > 0) {
-        const expectedTicket = nameCheck.rows[0];
-        console.log(`⚠️ Monto incorrecto. ${nombre} pagó S/.${monto} pero su ticket es de S/.${expectedTicket.total_pagado}`);
-
-        res.json({
-          status: 'revisar',
-          mensaje: `El monto pagado (S/.${monto}) no coincide con el valor de tu ticket (S/.${expectedTicket.total_pagado}). Por favor, realiza el pago exacto.`
-        });
-      } else {
-        console.log(`⚠️ Pago de S/.${monto} de ${nombre} sin ticket pendiente`);
-        res.json({
-          status: 'revisar',
-          mensaje: `Pago recibido de S/.${monto} por ${nombre}, pero no se encontró un ticket pendiente con ese monto.`
-        });
-      }
     }
+
+    const ticket = result.rows[0];
+
+    // 3. ✅ Validar el ticket: actualizar estado y comprobante_hash
+    await db.execute({
+      sql: `UPDATE tickets
+            SET comprobante_hash = ?,
+                estado_pago = 'validado'
+            WHERE id = ?`,
+      args: [codigo, ticket.id]
+    });
+
+    // 4. Log exitoso
+    await db.execute({
+      sql: `INSERT INTO yape_webhook_logs (sms_body, monto_detectado, codigo_operacion, ticket_id, estado)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [sms_body, monto, codigo, ticket.id, 'validado']
+    });
+
+    console.log(`🎉 Ticket #${ticket.codigo_ticket} APROBADO (Monto: S/.${monto})`);
+
+    return res.json({
+      status: 'aprobado',
+      numero_ticket: ticket.codigo_ticket,
+      mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
+    });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error procesando pago de Yape:', error);
+    res.status(500).json({ status: 'error', mensaje: 'Error interno del servidor' });
+  }
+});
+
+// ============================================
+// ✅ NUEVO: Endpoint para limpiar tickets expirados (puedes llamarlo con cron)
+// ============================================
+app.post('/api/admin/limpiar-expirados', verifyApiKey, async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql: `UPDATE tickets
+            SET estado_pago = 'expirado'
+            WHERE estado_pago = 'pendiente'
+              AND expires_at IS NOT NULL
+              AND expires_at < datetime('now')`
+    });
+    console.log(`🧹 Tickets expirados limpiados: ${result.changes || 0}`);
+    res.json({ status: 'ok', limpiados: result.changes || 0 });
+  } catch (error) {
+    console.error('Error limpiando expirados:', error);
     res.status(500).json({ status: 'error', mensaje: 'Error interno' });
   }
 });
 
 // ============================================
-// 2. Crear ticket manual
-// ============================================
-app.post('/api/crear-ticket', async (req, res) => {
-  try {
-    const { telefono, nombre_cliente, cantidad } = req.body;
-    if (!telefono || !nombre_cliente || !cantidad) {
-      return res.status(400).json({ status: 'error', mensaje: 'Faltan datos' });
-    }
-
-    const monto = cantidad * 5;
-    const codigo_ticket = Math.floor(10000 + Math.random() * 90000).toString();
-
-    await db.execute({
-      sql: `INSERT INTO tickets (codigo_ticket, cliente_nombre, cliente_telefono, cantidad_tickets, total_pagado)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [codigo_ticket, nombre_cliente, telefono, cantidad, monto],
-    });
-
-    console.log(`🎟️ Ticket creado: #${codigo_ticket} para ${nombre_cliente}`);
-
-    res.json({
-      mensaje: `Ticket creado. Envía S/.${monto} al Yape.`,
-      numero_reservado: codigo_ticket
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ status: 'error', mensaje: 'Error al crear ticket' });
-  }
-});
-
-// ============================================
-// 3. Ver tickets
-// ============================================
-app.get('/api/tickets', async (req, res) => {
-  try {
-    const pendientes = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NULL");
-    const validados = await db.execute("SELECT * FROM tickets WHERE comprobante_hash IS NOT NULL");
-    res.json({ pendientes: pendientes.rows, validados: validados.rows });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================
-// 4. Health check
+// Health check
 // ============================================
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     modo: process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)',
-    mensaje: 'API de sorteos funcionando',
     timestamp: new Date().toISOString()
   });
 });
 
-// ============================================
-// INICIAR SERVIDOR
-// ============================================
 const PORT = process.env.PORT || 3000;
 
 testConnection().then(() => {
   runMigrations().then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-      console.log(`📡 Modo: ${process.env.TURSO_DATABASE_URL ? 'PRODUCCIÓN (Turso)' : 'LOCAL (SQLite)'}`);
-      console.log(`✅ Rutas montadas: /api/admin, /api/upload, /api/public, /api/auth, /api/user`);
     });
   });
 });

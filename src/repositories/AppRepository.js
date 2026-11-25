@@ -54,11 +54,7 @@ export class AppRepository {
   async upsertSorteo(sorteo) {
     if (sorteo.id) {
       const result = await this._db.execute({
-        sql: `UPDATE sorteos SET
-                nombre = ?, slug = ?, subtitulo = ?, premio_descripcion = ?,
-                precio_jugada = ?, pozo_actual = 0, min_bolillas = ?, max_numero = ?,
-                imagen = ?, banner_lateral = ?, fecha_sorteo = ?, hora_sorteo = ?, activo = ?
-              WHERE id = ? RETURNING *`,
+        sql: `UPDATE sorteos SET nombre = ?, slug = ?, subtitulo = ?, premio_descripcion = ?, precio_jugada = ?, pozo_actual = 0, min_bolillas = ?, max_numero = ?, imagen = ?, banner_lateral = ?, fecha_sorteo = ?, hora_sorteo = ?, activo = ? WHERE id = ? RETURNING *`,
         args: [
           sorteo.nombre, sorteo.slug, sorteo.subtitulo || null, sorteo.premio_descripcion || null,
           sorteo.precio_jugada, sorteo.min_bolillas || 6, sorteo.max_numero || 51,
@@ -69,11 +65,7 @@ export class AppRepository {
       return result.rows[0];
     } else {
       const result = await this._db.execute({
-        sql: `INSERT INTO sorteos (
-                nombre, slug, subtitulo, premio_descripcion, precio_jugada,
-                pozo_actual, min_bolillas, max_numero, imagen, banner_lateral,
-                fecha_sorteo, hora_sorteo, activo
-              ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        sql: `INSERT INTO sorteos ( nombre, slug, subtitulo, premio_descripcion, precio_jugada, pozo_actual, min_bolillas, max_numero, imagen, banner_lateral, fecha_sorteo, hora_sorteo, activo ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
         args: [
           sorteo.nombre, sorteo.slug, sorteo.subtitulo || null, sorteo.premio_descripcion || null,
           sorteo.precio_jugada, sorteo.min_bolillas || 6, sorteo.max_numero || 51,
@@ -85,8 +77,6 @@ export class AppRepository {
     }
   }
 
-  // ✅ Cambios: todos los métodos de tickets aceptan `exec` opcional
-  //    para poder correr dentro de una transacción.
   async _getTicketColumns(exec = null) {
     if (this._ticketCols) return this._ticketCols;
     const e = exec || this._db;
@@ -114,8 +104,13 @@ export class AppRepository {
       jugadas_json: data.jugadas_json ?? '[]',
       si_o_si: data.si_o_si ?? 0,
       boliyapa_numero: data.boliyapa_numero ?? null,
+      // ✅ NUEVOS CAMPOS para flujo Yape
+      monto_yape_exacto: data.monto_yape_exacto ?? null,
+      estado_pago: data.estado_pago ?? 'pendiente',
+      captura_yape_url: data.captura_yape_url ?? null,
+      sms_codigo_operacion: data.sms_codigo_operacion ?? null,
+      webhook_recibido_at: data.webhook_recibido_at ?? null,
     };
-
     const insertCols = [];
     const args = [];
     for (const col of cols) {
@@ -132,7 +127,6 @@ export class AppRepository {
         args.push(fallback);
       }
     }
-
     const sql = `INSERT INTO tickets (${insertCols.join(', ')}) VALUES (${insertCols.map(() => '?').join(', ')}) RETURNING *`;
     const result = await e.execute({ sql, args });
     return result.rows[0];
@@ -144,8 +138,6 @@ export class AppRepository {
     return result.rows.length > 0;
   }
 
-  // ✅ Ahora consulta la tabla `comprobantes` (1 fila por compra).
-  //    Si la tabla aún no existe (migración pendiente), retorna false para no romper nada.
   async existeComprobanteHash(hash, exec = null) {
     if (!hash) return false;
     const e = exec || this._db;
@@ -181,6 +173,58 @@ export class AppRepository {
 
   async getTicketsByUsuario(usuarioId) {
     const result = await this._db.execute({ sql: 'SELECT * FROM tickets WHERE user_id = ? ORDER BY id DESC', args: [usuarioId] });
+    return result.rows;
+  }
+
+  // ✅ NUEVO: Buscar ticket pendiente por monto_yape_exacto
+  async getTicketPendienteByMontoYape(montoExacto, exec = null) {
+    const e = exec || this._db;
+    const result = await e.execute({
+      sql: `SELECT * FROM tickets 
+            WHERE monto_yape_exacto = ? 
+            AND estado_pago = 'pendiente' 
+            ORDER BY creado_en ASC 
+            LIMIT 1`,
+      args: [montoExacto]
+    });
+    return result.rows[0] || null;
+  }
+
+  // ✅ NUEVO: Actualizar estado de pago del ticket
+  async actualizarEstadoPago(ticketId, estado, datos = {}, exec = null) {
+    const e = exec || this._db;
+    const updates = ['estado_pago = ?'];
+    const args = [estado];
+    
+    if (datos.captura_yape_url) {
+      updates.push('captura_yape_url = ?');
+      args.push(datos.captura_yape_url);
+    }
+    if (datos.sms_codigo_operacion) {
+      updates.push('sms_codigo_operacion = ?');
+      args.push(datos.sms_codigo_operacion);
+    }
+    if (datos.webhook_recibido_at) {
+      updates.push('webhook_recibido_at = ?');
+      args.push(datos.webhook_recibido_at);
+    }
+    
+    args.push(ticketId);
+    
+    const sql = `UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`;
+    await e.execute({ sql, args });
+  }
+
+  // ✅ NUEVO: Obtener tickets de una compra (por DNI + sorteo + fecha reciente)
+  async getTicketsByCompra(clienteDni, sorteoId, minutos = 15) {
+    const result = await this._db.execute({
+      sql: `SELECT * FROM tickets 
+            WHERE cliente_dni = ? 
+            AND sorteo_id = ? 
+            AND creado_en >= datetime('now', '-${minutos} minutes')
+            ORDER BY id DESC`,
+      args: [clienteDni, sorteoId]
+    });
     return result.rows;
   }
 
@@ -261,5 +305,26 @@ export class AppRepository {
       args: [limit]
     });
     return result.rows;
+  }
+
+  // ✅ NUEVO: Registrar log de webhook
+  async logYapeWebhook(montoRecibido, smsBody, ticketId, estado) {
+    const result = await this._db.execute({
+      sql: `INSERT INTO yape_webhook_logs (monto_recibido, sms_body, ticket_id, estado) 
+            VALUES (?, ?, ?, ?) RETURNING *`,
+      args: [montoRecibido, smsBody, ticketId, estado]
+    });
+    return result.rows[0];
+  }
+
+  // ✅ NUEVO: Limpiar tickets expirados (pendientes > 15 min)
+  async limpiarTicketsExpirados(minutos = 15) {
+    const result = await this._db.execute({
+      sql: `DELETE FROM tickets 
+            WHERE estado_pago = 'pendiente' 
+            AND creado_en < datetime('now', '-${minutos} minutes')`,
+      args: []
+    });
+    return result.rows.length;
   }
 }

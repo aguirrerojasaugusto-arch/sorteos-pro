@@ -1,4 +1,12 @@
-const state = { sorteos: [], sorteoSeleccionado: null, bannerIndex: 0, bannerTimer: null };
+const state = {
+  sorteos: [],
+  sorteoSeleccionado: null,
+  bannerIndex: 0,
+  bannerTimer: null,
+  config: {},
+  compraActualId: null, // ✅ NUEVO: ID de la compra en proceso
+  pollingTimer: null    // ✅ NUEVO: Timer del polling
+};
 
 const PROMO_SPEED = 18;
 const PROMO_VISIBLE = 4;
@@ -19,7 +27,7 @@ let sorteosPaused = false;
 let dniDebounceTimer = null;
 
 /* ============================================================
-   ✅ RELOJ REAL DE LIMA (UTC-5) — funciones nuevas
+   RELOJ REAL DE LIMA (UTC-5)
    ============================================================ */
 function fechaObjetivoLima(s) {
   const fecha = String(s.fecha_sorteo || '').trim();
@@ -27,13 +35,12 @@ function fechaObjetivoLima(s) {
   const m = fecha.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
   const y = m[1], mo = m[2], d = m[3];
-
   let hora = '00:00';
   if (s.hora_sorteo) {
     const hm = String(s.hora_sorteo).match(/(\d{1,2}):(\d{2})/);
     if (hm) hora = hm[1].padStart(2, '0') + ':' + hm[2];
   } else {
-    const ht = fecha.match(/[T ](\d{2}):(\d{2})/);
+    const ht = fecha.match(/[T](\d{2}):(\d{2})/);
     if (ht) hora = ht[1] + ':' + ht[2];
   }
   return new Date(`${y}-${mo}-${d}T${hora}:00-05:00`);
@@ -59,7 +66,6 @@ function iniciarContadores() {
       const restante = objetivo.getTime() - Date.now();
       const cd = card.querySelector('.card-countdown');
       const btn = card.querySelector('.btn-participar');
-      
       if (restante <= 0) {
         if (cd) { cd.textContent = '⛔ Sorteo finalizado'; cd.classList.add('expired'); }
         if (btn && !btn.disabled) {
@@ -85,7 +91,8 @@ async function cargarDatos() {
     const res = await fetch('/api/public/bootstrap?t=' + Date.now());
     const data = await res.json();
     state.sorteos = data.sorteos || [];
-    
+    state.config = data.config || {};
+
     let bannersA_Mostrar = [];
     if (data.banners && data.banners.length > 0) {
       bannersA_Mostrar = data.banners;
@@ -109,23 +116,19 @@ async function cargarDatos() {
 function inicializarBusquedaDNI() {
   const dniInput = document.getElementById('inp-dni');
   if (!dniInput) return;
-
   dniInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8);
     const dni = e.target.value;
     const statusBadge = document.getElementById('dni-status');
-
     if (dni.length < 8) {
       statusBadge.textContent = '';
       statusBadge.className = 'status-badge';
       setCamposClienteEditable(true);
       return;
     }
-
     statusBadge.textContent = 'Buscando...';
     statusBadge.className = 'status-badge buscando';
     setCamposClienteEditable(false);
-
     clearTimeout(dniDebounceTimer);
     dniDebounceTimer = setTimeout(() => buscarClientePorDni(dni), 500);
   });
@@ -136,15 +139,11 @@ async function buscarClientePorDni(dni) {
   try {
     const res = await fetch(`/api/public/cliente/${dni}`);
     const data = await res.json();
-
     if (data.encontrado) {
-      // ✅ FORZAR MAYÚSCULAS en el autocompletado del frontend
       document.getElementById('inp-nombres').value = (data.datos.nombres || '').toUpperCase();
       document.getElementById('inp-apellidos').value = (data.datos.apellidos || '').toUpperCase();
       document.getElementById('inp-celular').value = (data.datos.celular || '').toUpperCase();
-
       const selectDepto = document.getElementById('inp-departamento');
-
       if (data.datos.departamento) {
         selectDepto.value = (data.datos.departamento || '').toUpperCase();
         statusBadge.textContent = '✓ Registrado';
@@ -185,7 +184,7 @@ function inicializarBanner(banners) {
     container.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; color:#999;">Sin banners configurados</div>';
     return;
   }
-  container.innerHTML = banners.map((b, i) => 
+  container.innerHTML = banners.map((b, i) =>
     `<img src="${b.url_imagen}" class="${i === 0 ? 'active' : ''}" alt="Banner ${i+1}">`
   ).join('');
   const slides = container.querySelectorAll('img');
@@ -213,12 +212,12 @@ function inicializarPromos(promos) {
   let base = promosBase.slice();
   while (base.length < PROMO_VISIBLE) base = base.concat(promosBase);
   const lista = base.concat(base);
-  track.innerHTML = lista.map(p => `
-    <div class="promo-card">
-      <img src="${p.url_imagen}" alt="Promo">
-      <div class="promo-fecha">${p.fecha || ''}</div>
-    </div>
-  `).join('');
+  track.innerHTML = lista.map(p =>
+    `<div class="promo-card">
+       <img src="${p.url_imagen}" alt="Promo">
+       <div class="promo-fecha">${p.fecha || ''}</div>
+     </div>`
+  ).join('');
   viewport.onmouseenter = () => promosPaused = true;
   viewport.onmouseleave = () => promosPaused = false;
   requestAnimationFrame(() => { ajustarPromos(); iniciarPromosLoop(); });
@@ -283,19 +282,15 @@ function htmlTarjetas(sorteos) {
     const objetivo = fechaObjetivoLima(s);
     const restanteMs = objetivo ? objetivo.getTime() - ahora : null;
     const bloqueado = objetivo && restanteMs <= 0;
-
     const fechaTexto = objetivo
       ? objetivo.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Lima' })
       : 'Por definir';
-
     const cdHtml = objetivo
       ? `<div class="card-countdown ${restanteMs <= 0 ? 'expired' : (restanteMs < 3600000 ? 'warn' : '')}">${bloqueado ? '⛔ Sorteo finalizado' : '⏳ ' + fmtRestante(restanteMs)}</div>`
       : '';
-
     const btnHtml = bloqueado
       ? `<button class="btn-participar is-finalizado" disabled>Sorteo Finalizado</button>`
       : `<button class="btn-participar" onclick="abrirModal(${s.id})">Participar</button>`;
-
     const premioTexto = s.premio_descripcion ? s.premio_descripcion : 'Premio Sorpresa';
     return `
       <div class="card-sorteo" data-fecha="${s.fecha_sorteo || ''}">
@@ -405,17 +400,30 @@ function abrirModal(idSorteo) {
   if (objetivo && objetivo.getTime() <= Date.now()) {
     return alert('Este sorteo ya ha finalizado.');
   }
+
+  // ✅ Limpiar polling anterior si existe
+  detenerPolling();
+
   state.sorteoSeleccionado = sorteo;
   document.getElementById('compra-sorteo-id').value = String(sorteo.id);
   document.getElementById('compra-precio').value = sorteo.precio_jugada;
   document.getElementById('precio-unitario').textContent = sorteo.precio_jugada;
   document.getElementById('modal-titulo').textContent = `Participar en: ${sorteo.nombre}`;
+
+  const config = state.config || {};
+  document.getElementById('pago-numero').textContent = config.contacto_telefono || '993 897 647';
+  document.getElementById('pago-nombre').textContent = config.brand_name || 'Artesanía Mariposita';
+
   document.getElementById('modal-compra').classList.remove('hidden');
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
-  document.getElementById('form-compra').reset(); 
+  document.getElementById('validacion-pago').classList.add('hidden'); // ✅ Ocultar validación
+  document.getElementById('form-compra').reset();
   document.getElementById('dni-status').textContent = '';
   document.getElementById('dni-status').className = 'status-badge';
+
+  const preview = document.getElementById('preview-comprobante');
+  if (preview) { preview.style.display = 'none'; preview.src = ''; }
   ocultarErrorComprobante();
   setCamposClienteEditable(true);
   actualizarTotal();
@@ -423,7 +431,19 @@ function abrirModal(idSorteo) {
 }
 
 function cerrarModal() {
+  detenerPolling(); // ✅ Limpiar polling al cerrar
   document.getElementById('modal-compra').classList.add('hidden');
+}
+
+/* ✅ Control de botones + y - */
+function cambiarCantidad(delta) {
+  const input = document.getElementById('inp-cantidad');
+  let val = parseInt(input.value) || 1;
+  val += delta;
+  if (val < 1) val = 1;
+  if (val > 50) val = 50;
+  input.value = val;
+  actualizarTotal();
 }
 
 function actualizarTotal() {
@@ -433,26 +453,49 @@ function actualizarTotal() {
   document.getElementById('total-pagar').textContent = `S/ ${total.toFixed(2)}`;
 }
 
-document.getElementById('inp-cantidad')?.addEventListener('input', actualizarTotal);
-
 function formatearCodigo(codigo) {
   if (!codigo) return '—';
   const partes = String(codigo).split('-');
   return partes[partes.length - 1];
 }
 
-/* ====== ✅ VALIDACIÓN DE COMPROBANTE REAL (YAPE/PLIN) ====== */
+/* ====== VALIDACIÓN DE COMPROBANTE ====== */
 function mostrarErrorComprobante(msg) {
   const box = document.getElementById('error-comprobante');
   if (box) { box.textContent = msg; box.style.display = 'block'; }
 }
+
 function ocultarErrorComprobante() {
   const box = document.getElementById('error-comprobante');
   if (box) { box.textContent = ''; box.style.display = 'none'; }
 }
+
 function inicializarValidadorComprobante() {
   const inp = document.getElementById('inp-comprobante');
-  if (inp) inp.addEventListener('change', ocultarErrorComprobante);
+  const preview = document.getElementById('preview-comprobante');
+  if (inp) {
+    inp.addEventListener('change', (e) => {
+      ocultarErrorComprobante();
+      const file = e.target.files[0];
+      if (file && preview) {
+        if (file.size > 5 * 1024 * 1024) {
+          mostrarErrorComprobante('❌ El comprobante supera el máximo de 5MB.');
+          inp.value = '';
+          preview.style.display = 'none';
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          preview.src = ev.target.result;
+          preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      } else if (preview) {
+        preview.style.display = 'none';
+        preview.src = '';
+      }
+    });
+  }
 }
 
 async function validarComprobanteYapePlin(file) {
@@ -487,10 +530,112 @@ async function validarComprobanteYapePlin(file) {
   });
 }
 
+/* ====== ✅ NUEVO: Funciones de polling ====== */
+function detenerPolling() {
+  if (state.pollingTimer) {
+    clearInterval(state.pollingTimer);
+    state.pollingTimer = null;
+  }
+  state.compraActualId = null;
+}
+
+function iniciarPolling(ticketId, montoExacto) {
+  state.compraActualId = ticketId;
+
+  // Mostrar pantalla de validación
+  document.getElementById('form-compra').classList.add('hidden');
+  document.getElementById('resultado-compra').classList.add('hidden');
+  document.getElementById('validacion-pago').classList.remove('hidden');
+
+  // Mostrar monto exacto
+  document.getElementById('monto-exacto-display').textContent = montoExacto.toFixed(2);
+  const config = state.config || {};
+  document.getElementById('yape-numero-validacion').textContent = config.contacto_telefono || '993 897 647';
+  document.getElementById('yape-nombre-validacion').textContent = config.brand_name || 'Artesanía Mariposita';
+
+  // Iniciar polling cada 3 segundos
+  let intentos = 0;
+  const maxIntentos = 300; // 15 minutos / 3 segundos = 300 intentos
+
+  state.pollingTimer = setInterval(async () => {
+    intentos++;
+    try {
+      const res = await fetch(`/api/public/compra/${ticketId}/estado`);
+      const data = await res.json();
+
+      const estadoDiv = document.getElementById('estado-validacion');
+
+      if (data.estado === 'validado') {
+        detenerPolling();
+        mostrarExitoCompra(data.ticket);
+      } else if (data.estado === 'expirado') {
+        detenerPolling();
+        if (estadoDiv) {
+          estadoDiv.innerHTML = '<span style="color: #d31145;">⏰ Tiempo agotado. El pago no fue recibido.</span>';
+        }
+        setTimeout(() => {
+          alert('El tiempo para validar el pago ha expirado. Intenta de nuevo.');
+          cerrarModal();
+        }, 2000);
+      } else if (data.estado === 'pendiente') {
+        // Actualizar contador
+        if (data.segundos_restantes !== undefined) {
+          const mins = Math.floor(data.segundos_restantes / 60);
+          const secs = data.segundos_restantes % 60;
+          document.getElementById('tiempo-restante').textContent =
+            `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        if (estadoDiv) {
+          estadoDiv.textContent = `🔍 Buscando confirmación... (intento ${intentos})`;
+        }
+      }
+    } catch (error) {
+      console.error('Error en polling:', error);
+    }
+
+    if (intentos >= maxIntentos) {
+      detenerPolling();
+      alert('Tiempo agotado. Intenta de nuevo.');
+      cerrarModal();
+    }
+  }, 3000);
+}
+
+function mostrarExitoCompra(ticket) {
+  document.getElementById('validacion-pago').classList.add('hidden');
+  const resultDiv = document.getElementById('resultado-compra');
+  resultDiv.classList.remove('hidden');
+
+  let html = `
+    <div style="background: #d4edda; border: 2px solid #28a745; padding: 2rem; border-radius: 12px;">
+      <h3 style="color: #155724; margin-bottom: 1rem; font-size: 1.5rem;">✅ ¡Pago Confirmado!</h3>
+      <p style="margin-bottom: 1rem; font-size: 1rem; color: #155724;">
+        <strong>Cliente:</strong> ${ticket.cliente_nombre || 'N/A'}<br>
+        <strong>DNI:</strong> ${ticket.cliente_dni || 'N/A'}
+      </p>
+      <div style="background: white; padding: 1.5rem; border-radius: 8px; margin: 1rem 0; border: 2px dashed #28a745;">
+        <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Tu número de ticket:</div>
+        <div style="font-size: 2.5rem; font-weight: bold; color: #d31145; letter-spacing: 2px;">
+          #${formatearCodigo(ticket.codigo_ticket)}
+        </div>
+      </div>
+      <p style="font-size: 0.85rem; color: #666; margin-top: 1rem;">
+        Guarda este número. Lo necesitarás para verificar si ganaste.
+      </p>
+      <button onclick="cerrarModal(); location.reload();"
+              style="margin-top: 1rem; padding: 0.8rem 2rem; background: var(--tinka-green, #28a745); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem;">
+        Aceptar
+      </button>
+    </div>
+  `;
+  resultDiv.innerHTML = html;
+}
+
+/* ====== ✅ COMPRA MODIFICADA ====== */
 async function comprarTickets(e) {
   e.preventDefault();
   const btn = e.target.querySelector('button[type="submit"]');
-  btn.textContent = 'Procesando...';
+  btn.textContent = '⏳ Procesando...';
   btn.disabled = true;
 
   const dni = document.getElementById('inp-dni').value;
@@ -514,7 +659,7 @@ async function comprarTickets(e) {
   formData.append('departamento', departamento);
   formData.append('celular', document.getElementById('inp-celular').value);
   formData.append('cantidad_tickets', document.getElementById('inp-cantidad').value);
-  
+
   const comprobanteInput = document.getElementById('inp-comprobante');
   if (comprobanteInput.files.length > 0) {
     const file = comprobanteInput.files[0];
@@ -532,45 +677,44 @@ async function comprarTickets(e) {
       return;
     }
     if (!validacion.esValido) {
-      mostrarErrorComprobante('❌ Este no es un comprobante válido de Yape o Plin. Sube la captura de pantalla de tu pago.');
+      mostrarErrorComprobante('❌ Este no es un comprobante válido de Yape o Plin.');
       btn.textContent = 'Confirmar Compra';
       btn.disabled = false;
       return;
     }
     formData.append('comprobante', file);
+  } else {
+    mostrarErrorComprobante('❌ Debes subir un comprobante de pago.');
+    btn.textContent = 'Confirmar Compra';
+    btn.disabled = false;
+    return;
   }
 
   try {
     const res = await fetch('/api/public/comprar-aleatorio', {
       method: 'POST',
-      body: formData 
+      body: formData
     });
 
     if (res.ok) {
       const data = await res.json();
-      document.getElementById('form-compra').classList.add('hidden');
-      const resultDiv = document.getElementById('resultado-compra');
-      resultDiv.classList.remove('hidden');
-      let html = `<h3 style="color:var(--tinka-green); margin-bottom: 5px;">¡Compra Exitosa!</h3>`;
-      html += `<p style="margin-bottom: 15px; font-size: 0.9rem; color: #555;">
-                 <strong>Cliente:</strong> ${nombres} ${apellidos}<br>
-                 <strong>DNI:</strong> ${dni}<br>
-                 <strong>Departamento:</strong> ${departamento}
-               </p>`;
-      html += `<div style="background:#f0f0f0; padding:1rem; border-radius:8px; margin-bottom:1rem; font-weight:bold; text-align:center; border: 1px solid #ddd;">`;
-      data.tickets.forEach(t => {
-        html += `<div style="margin-bottom: 5px;">Ticket #<span style="color: #d31145;">${formatearCodigo(t.codigo_ticket)}</span></div>`;
-      });
-      html += `</div>`;
-      html += `<button onclick="cerrarModal(); location.reload();" style="margin-top:1rem; padding:0.8rem; width:100%; background:var(--tinka-green); color:white; border:none; border-radius:6px; cursor:pointer;">Aceptar</button>`;
-      resultDiv.innerHTML = html;
+
+      // ✅ NUEVO: Iniciar polling en vez de mostrar tickets inmediatamente
+      if (data.tickets && data.tickets.length > 0 && data.total_pagado) {
+        // Usar el ID del primer ticket para el polling
+        const primerTicketId = data.tickets[0].id;
+        iniciarPolling(primerTicketId, data.total_pagado);
+      } else {
+        // Fallback: si no hay total_pagado, mostrar error
+        mostrarErrorComprobante('❌ Error al procesar la compra. Intenta de nuevo.');
+      }
     } else {
       const err = await res.json();
       mostrarErrorComprobante('❌ ' + (err.error || 'Error en la compra.'));
-      alert('Error: ' + err.error);
     }
   } catch (error) {
-    alert('Error de conexión');
+    console.error('Error de conexión:', error);
+    alert('Error de conexión con el servidor.');
   } finally {
     btn.textContent = 'Confirmar Compra';
     btn.disabled = false;
