@@ -7,7 +7,7 @@ import { renderizarTarjetas, iniciarAutoScrollLento, scrollSorteos, construirCin
 import { abrirModal, cerrarModal, cambiarCantidad, actualizarTotal } from './modules/sorteos-modal.js';
 import { inicializarCompra, comprarTickets } from './modules/sorteos-compra.js';
 
-// ✅ CRUCIAL: Exponer funciones al objeto global window para que el HTML las encuentre
+// ✅ Exponer funciones al window para que el HTML las encuentre
 window.abrirModal = abrirModal;
 window.cerrarModal = cerrarModal;
 window.cambiarCantidad = cambiarCantidad;
@@ -28,7 +28,6 @@ async function cargarDatos() {
     state.sorteos = data.sorteos || [];
     state.config = data.config || {};
 
-    // Banners: usar los de la BD, o fallback a banner_lateral de sorteos
     let bannersA_Mostrar = [];
     if (data.banners && data.banners.length > 0) {
       bannersA_Mostrar = data.banners;
@@ -38,11 +37,8 @@ async function cargarDatos() {
         .map(s => ({ url_imagen: s.banner_lateral }));
     }
     console.log('🖼️ Banners a mostrar:', bannersA_Mostrar.length);
-
-    // Promos
     console.log('📢 Promos recibidas:', data.promos_laterales?.length || 0);
 
-    // Renderizar todo
     inicializarBanner(bannersA_Mostrar);
     inicializarPromos(data.promos_laterales || []);
     renderizarTarjetas();
