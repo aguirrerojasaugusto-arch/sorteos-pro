@@ -35,7 +35,6 @@ export class TicketSearchRepository {
     try {
       const digits = raw.replace(/\D/g, '');
       const isNumeric = digits.length > 0 && digits === raw.replace(/[\s.\-]/g, '');
-
       const hasCodigo = await this._ticketHas('codigo_ticket');
       const hasDni = await this._ticketHas('cliente_dni');
       const hasTel = await this._ticketHas('cliente_telefono');
@@ -67,12 +66,17 @@ export class TicketSearchRepository {
 
       if (!conds.length) return { tickets: [], total: 0 };
 
-      const select = hasSorteoId ? 't.*, s.nombre AS nombre_sorteo' : 't.*';
+      // ✅ CAMBIO CLAVE: Incluir s.fecha_sorteo en el SELECT
+      const select = hasSorteoId 
+        ? 't.*, s.nombre AS nombre_sorteo, s.fecha_sorteo AS fecha_sorteo' 
+        : 't.*';
+      
       const from = hasSorteoId
         ? 'FROM tickets t LEFT JOIN sorteos s ON t.sorteo_id = s.id'
         : 'FROM tickets t';
+      
       const orderBy = hasCreadoEn ? 't.creado_en DESC' : 't.ROWID DESC';
-
+      
       const sql = `
         SELECT ${select}
         ${from}
@@ -81,18 +85,19 @@ export class TicketSearchRepository {
       `;
 
       const result = await this._db.execute({ sql, args });
-
+      
       const tickets = result.rows.map(t => {
-        let numeros = '-';
-        if (t.jugadas_json) {
-          try {
-            const jugadas = JSON.parse(t.jugadas_json);
-            numeros = jugadas.map(j => j.numeros.join('-')).join(', ');
-          } catch (e) {
-            numeros = 'Error al leer';
-          }
-        }
-        return { ...t, numeros };
+        // ✅ CAMBIO: Mostrar código de ticket en lugar de números jugados
+        const codigo = t.codigo_ticket 
+          ? String(t.codigo_ticket).split('-').pop() 
+          : '---';
+        
+        return { 
+          ...t, 
+          codigo_mostrado: codigo,
+          // Mantener jugadas por compatibilidad con otros módulos
+          jugadas: t.jugadas_json ? JSON.parse(t.jugadas_json) : []
+        };
       });
 
       return { tickets, total: tickets.length };
