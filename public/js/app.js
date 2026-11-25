@@ -165,6 +165,7 @@ function inicializarSorteos() {
    ✅ MODAL FLOTANTE DE TICKETS (CORREGIDO)
    ========================================== */
 function inyectarModalTickets() {
+  // Si el modal ya existe en el HTML (caso actual), NO duplicar.
   if (document.getElementById('modal-tickets')) return;
   
   const modalHTML = `
@@ -269,34 +270,44 @@ async function buscarMisTickets() {
     
     tbody.innerHTML = '';
     
-    // ✅ NUEVO: Agrupar tickets por sorteo_id
+    // ✅ CAMBIO: Agrupar tickets por sorteo_id
     const ticketsPorSorteo = {};
     data.tickets.forEach(t => {
-  // ✅ NUEVO: Usar fecha_sorteo si existe, sino fallback a creado_en
-  let fechaMostrar = 'Por definir';
-  
-  if (t.fecha_sorteo) {
-    // Normalizar formato (SQLite puede venir con espacio en vez de T)
-    const fechaNormalizada = String(t.fecha_sorteo).replace(' ', 'T');
-    const fechaObj = new Date(fechaNormalizada);
-    if (!isNaN(fechaObj.getTime())) {
-      fechaMostrar = fechaObj.toLocaleDateString('es-PE', { 
+      const sid = t.sorteo_id || 'default';
+      if (!ticketsPorSorteo[sid]) {
+        ticketsPorSorteo[sid] = {
+          nombre: t.nombre_sorteo || 'Sorteo',
+          fechaSorteo: t.fecha_sorteo || null,
+          codigos: []
+        };
+      }
+      ticketsPorSorteo[sid].codigos.push(`#${t.codigo_mostrado || '---'}`);
+    });
+    
+    // ✅ CAMBIO: Formatear fecha del sorteo de forma segura
+    const formatearFechaSorteo = (fechaStr) => {
+      if (!fechaStr) return 'Por definir';
+      const normalizada = String(fechaStr).replace(' ', 'T');
+      const d = new Date(normalizada);
+      if (isNaN(d.getTime())) return 'Por definir';
+      return d.toLocaleDateString('es-PE', { 
         day: '2-digit', 
         month: '2-digit', 
         year: 'numeric' 
       });
-    }
-  }
-  
-  const numeros = t.numeros || (t.jugadas && t.jugadas.map(j => j.numeros.join('-')).join(' | ')) || '---';
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td>${t.nombre_sorteo || 'Sorteo'}</td>
-    <td>${fechaMostrar}</td>
-    <td class="numeros-cell">${numeros}</td>
-  `;
-  tbody.appendChild(tr);
-});
+    };
+    
+    // ✅ CAMBIO: Generar una fila por sorteo con todos los códigos agrupados
+    Object.values(ticketsPorSorteo).forEach(info => {
+      const codigosUnidos = info.codigos.join(', ');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${info.nombre}</strong></td>
+        <td>${formatearFechaSorteo(info.fechaSorteo)}</td>
+        <td class="numeros-cell">${codigosUnidos}</td>
+      `;
+      tbody.appendChild(tr);
+    });
     
   } catch (e) {
     console.error('Error buscando tickets:', e);
