@@ -4,17 +4,21 @@ import { setCamposClienteEditable } from './sorteos-dni.js';
 import { detenerPolling } from './sorteos-polling.js';
 
 export function abrirModal(idSorteo) {
-  const sorteo = state.sorteos.find(s => s.id === idSorteo);
-  if (!sorteo) return;
-  
+  // ✅ FIX: comparación flexible string/number
+  const sorteo = state.sorteos.find(s => String(s.id) === String(idSorteo));
+  if (!sorteo) {
+    console.warn('⚠️ Sorteo no encontrado. id recibido:', idSorteo, '| IDs disponibles:', state.sorteos.map(s => s.id));
+    return alert('No se pudo cargar el sorteo. Recarga la página.');
+  }
+
   const objetivo = fechaObjetivoLima(sorteo);
   if (objetivo && objetivo.getTime() <= Date.now()) {
     return alert('Este sorteo ya ha finalizado.');
   }
 
   detenerPolling();
-
   state.sorteoSeleccionado = sorteo;
+
   document.getElementById('compra-sorteo-id').value = String(sorteo.id);
   document.getElementById('compra-precio').value = sorteo.precio_jugada;
   document.getElementById('precio-unitario').textContent = sorteo.precio_jugada;
@@ -28,16 +32,17 @@ export function abrirModal(idSorteo) {
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
   document.getElementById('validacion-pago').classList.add('hidden');
+
   document.getElementById('form-compra').reset();
   document.getElementById('dni-status').textContent = '';
   document.getElementById('dni-status').className = 'status-badge';
 
   const preview = document.getElementById('preview-comprobante');
-  if (preview) { 
-    preview.style.display = 'none'; 
-    preview.src = ''; 
+  if (preview) {
+    preview.style.display = 'none';
+    preview.src = '';
   }
-  
+
   ocultarErrorComprobante();
   setCamposClienteEditable(true);
   actualizarTotal();
@@ -74,16 +79,16 @@ export function formatearCodigo(codigo) {
 
 export function mostrarErrorComprobante(msg) {
   const box = document.getElementById('error-comprobante');
-  if (box) { 
-    box.textContent = msg; 
-    box.style.display = 'block'; 
+  if (box) {
+    box.textContent = msg;
+    box.style.display = 'block';
   }
 }
 
 export function ocultarErrorComprobante() {
   const box = document.getElementById('error-comprobante');
-  if (box) { 
-    box.textContent = ''; 
-    box.style.display = 'none'; 
+  if (box) {
+    box.textContent = '';
+    box.style.display = 'none';
   }
 }
