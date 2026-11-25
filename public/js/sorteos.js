@@ -7,7 +7,7 @@ import { renderizarTarjetas, iniciarAutoScrollLento, scrollSorteos, construirCin
 import { abrirModal, cerrarModal, cambiarCantidad, actualizarTotal } from './modules/sorteos-modal.js';
 import { inicializarCompra, comprarTickets } from './modules/sorteos-compra.js';
 
-// ✅ Exponer funciones al window para que el HTML las encuentre
+// ✅ CRUCIAL: Exponer funciones al objeto global window para que el HTML las encuentre
 window.abrirModal = abrirModal;
 window.cerrarModal = cerrarModal;
 window.cambiarCantidad = cambiarCantidad;
