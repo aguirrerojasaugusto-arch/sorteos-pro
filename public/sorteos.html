@@ -4,19 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sorteos Disponibles - Juega y Gana</title>
-  <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/sorteos.css">
+  <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
-  <!-- Topbar -->
-  <div class="topbar">
+
+  <!-- ============================================================
+       TOPBAR
+  ============================================================= -->
+  <header class="topbar">
     <a href="/" class="btn-back">← Volver al Inicio</a>
     <div class="brand">Juega y Gana</div>
-  </div>
+  </header>
 
+  <!-- ============================================================
+       CONTENEDOR PRINCIPAL
+  ============================================================= -->
   <div class="main-container">
-    <!-- Columna Izquierda: Banner + Sorteos -->
+
+    <!-- ========== COLUMNA IZQUIERDA ========== -->
     <div class="col-left">
+
+      <!-- Título de sección -->
       <h2 class="section-title">Sorteos Disponibles</h2>
 
       <!-- Banner rotativo -->
@@ -30,109 +39,117 @@
         <div id="grid-sorteos" class="grid-sorteos"></div>
         <button class="arrow-btn-sorteos arrow-btn-sorteos-right" onclick="scrollSorteos(1)">❯</button>
       </div>
+
     </div>
 
-    <!-- Columna Derecha: Promos -->
+    <!-- ========== COLUMNA DERECHA (Promociones) ========== -->
     <div class="col-right">
       <div class="promos-header">
         <h3>Promociones</h3>
         <div class="arrow-buttons">
           <button onclick="scrollPromos(-1)">⬆</button>
           <button onclick="scrollPromos(1)">⬇</button>
+          <button onclick="document.querySelector('.col-right').style.display='none'">✖</button>
         </div>
       </div>
       <div id="promos-viewport" class="promos-viewport">
         <div id="promos-track" class="promos-track"></div>
       </div>
     </div>
+
   </div>
 
-  <!-- Modal de Compra -->
+  <!-- ============================================================
+       MODAL DE COMPRA
+  ============================================================= -->
   <div id="modal-compra" class="modal-overlay hidden">
     <div class="modal-content">
       <button class="btn-close" onclick="cerrarModal()">✖</button>
       <h2 id="modal-titulo">Participar en el Sorteo</h2>
 
+      <!-- Instrucciones de pago -->
+      <div style="background:#fff9e6; border:1px solid #f0c040; border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
+        <strong>💳 Instrucciones de Pago:</strong><br>
+        Yapea o Plinea al <strong id="pago-numero">Cargando...</strong><br>
+        a nombre de <strong id="pago-nombre">Cargando...</strong>
+      </div>
+
       <!-- Formulario de compra -->
-      <form id="form-compra" onsubmit="comprarTickets(event)">
-        <div class="form-group">
-          <label>💳 Instrucciones de Pago:</label>
-          <p style="font-size:0.9rem; color:#666; margin-top:0.3rem;">
-            Yapea o Plinea al <strong id="pago-numero">Cargando...</strong><br>
-            a nombre de <strong id="pago-nombre">Cargando...</strong>
-          </p>
-        </div>
+      <form id="form-compra" class="hidden" onsubmit="comprarTickets(event)">
+        <input type="hidden" id="compra-sorteo-id" name="sorteo_id">
+        <input type="hidden" id="compra-precio" name="precio">
 
         <div class="form-row">
           <div class="form-group">
-            <label>DNI <span id="dni-status" class="status-badge"></span></label>
-            <input type="text" id="inp-dni" maxlength="8" required>
+            <label>DNI</label>
+            <input type="text" id="inp-dni" name="dni" maxlength="8" placeholder="12345678" required>
+            <span id="dni-status" class="status-badge"></span>
           </div>
           <div class="form-group">
             <label>Celular</label>
-            <input type="text" id="inp-celular" maxlength="9">
+            <input type="text" id="inp-celular" name="celular" maxlength="9" placeholder="999999999" required>
           </div>
         </div>
 
         <div class="form-group">
           <label>Departamento</label>
-          <select id="inp-departamento">
+          <select id="inp-departamento" name="departamento" required>
             <option value="">Selecciona un departamento...</option>
-            <option value="AMAZONAS">AMAZONAS</option>
-            <option value="ANCASH">ANCASH</option>
-            <option value="APURÍMAC">APURÍMAC</option>
-            <option value="AREQUIPA">AREQUIPA</option>
-            <option value="AYACUCHO">AYACUCHO</option>
-            <option value="CAJAMARCA">CAJAMARCA</option>
-            <option value="CALLAO">CALLAO</option>
-            <option value="CUSCO">CUSCO</option>
-            <option value="HUANCAVELICA">HUANCAVELICA</option>
-            <option value="HUÁNUCO">HUÁNUCO</option>
-            <option value="ICA">ICA</option>
-            <option value="JUNÍN">JUNÍN</option>
-            <option value="LA LIBERTAD">LA LIBERTAD</option>
-            <option value="LAMBAYEQUE">LAMBAYEQUE</option>
-            <option value="LIMA">LIMA</option>
-            <option value="LORETO">LORETO</option>
-            <option value="MADRE DE DIOS">MADRE DE DIOS</option>
-            <option value="MOQUEGUA">MOQUEGUA</option>
-            <option value="PASCO">PASCO</option>
-            <option value="PIURA">PIURA</option>
-            <option value="PUNO">PUNO</option>
-            <option value="SAN MARTÍN">SAN MARTÍN</option>
-            <option value="TACNA">TACNA</option>
-            <option value="TUMBES">TUMBES</option>
-            <option value="UCAYALI">UCAYALI</option>
+            <option>AMAZONAS</option>
+            <option>ANCASH</option>
+            <option>APURÍMAC</option>
+            <option>AREQUIPA</option>
+            <option>AYACUCHO</option>
+            <option>CAJAMARCA</option>
+            <option>CALLAO</option>
+            <option>CUSCO</option>
+            <option>HUANCAVELICA</option>
+            <option>HUÁNUCO</option>
+            <option>ICA</option>
+            <option>JUNÍN</option>
+            <option>LA LIBERTAD</option>
+            <option>LAMBAYEQUE</option>
+            <option>LIMA</option>
+            <option>LORETO</option>
+            <option>MADRE DE DIOS</option>
+            <option>MOQUEGUA</option>
+            <option>PASCO</option>
+            <option>PIURA</option>
+            <option>PUNO</option>
+            <option>SAN MARTÍN</option>
+            <option>TACNA</option>
+            <option>TUMBES</option>
+            <option>UCAYALI</option>
           </select>
         </div>
 
         <div class="form-row">
           <div class="form-group">
             <label>Nombres</label>
-            <input type="text" id="inp-nombres" required>
+            <input type="text" id="inp-nombres" name="nombres" required>
           </div>
           <div class="form-group">
             <label>Apellidos</label>
-            <input type="text" id="inp-apellidos" required>
+            <input type="text" id="inp-apellidos" name="apellidos" required>
           </div>
         </div>
 
         <div class="form-group">
           <label>Cantidad de Tickets (S/ <span id="precio-unitario">0</span> c/u)</label>
           <div style="display:flex; align-items:center; gap:0.5rem;">
-            <button type="button" onclick="cambiarCantidad(-1)" style="width:40px; height:40px; border-radius:50%; border:1px solid #ccc; background:white; font-size:1.2rem; cursor:pointer;">-</button>
-            <input type="number" id="inp-cantidad" min="1" max="50" value="1" style="text-align:center; flex:1;" required>
-            <button type="button" onclick="cambiarCantidad(1)" style="width:40px; height:40px; border-radius:50%; border:1px solid #ccc; background:white; font-size:1.2rem; cursor:pointer;">+</button>
+            <button type="button" onclick="cambiarCantidad(-1)" style="padding:0.5rem 1rem; border:1px solid #ccc; border-radius:6px; cursor:pointer;">-</button>
+            <input type="number" id="inp-cantidad" name="cantidad" value="1" min="1" max="50" style="width:60px; text-align:center; padding:0.5rem; border:1px solid #ccc; border-radius:6px;" required>
+            <button type="button" onclick="cambiarCantidad(1)" style="padding:0.5rem 1rem; border:1px solid #ccc; border-radius:6px; cursor:pointer;">+</button>
           </div>
         </div>
 
         <div class="form-group">
           <label>Comprobante de Pago (Yape / Plin)</label>
-          <input type="file" id="inp-comprobante" accept="image/*" required>
-          <img id="preview-comprobante" class="preview-img" style="display:none; max-width:100%; margin-top:0.5rem; border-radius:8px;">
-          <p style="font-size:0.8rem; color:#666; margin-top:0.3rem;">
+          <input type="file" id="inp-comprobante" name="comprobante" accept="image/*" required>
+          <small style="color:#666; display:block; margin-top:0.3rem;">
             📸 Sube la captura de pantalla de tu pago (Yape/Plin, vertical). Máx. 5MB. No se aceptan duplicados.
-          </p>
+          </small>
+          <img id="preview-comprobante" style="display:none; max-width:100%; margin-top:0.5rem; border-radius:8px;">
           <div id="error-comprobante" style="display:none; color:#d31145; font-size:0.85rem; margin-top:0.3rem;"></div>
         </div>
 
@@ -141,40 +158,34 @@
         </div>
 
         <button type="submit" class="btn-submit">Confirmar Compra</button>
-        <input type="hidden" id="compra-sorteo-id">
-        <input type="hidden" id="compra-precio">
       </form>
 
-      <!-- Pantalla de validación de pago -->
-      <div id="validacion-pago" class="hidden" style="text-align: center; padding: 2rem;">
-        <h3 style="color: var(--tinka-green); margin-bottom: 1rem;">⏳ Validando tu pago...</h3>
-        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">
-          Transfiere exactamente <strong style="color: #d31145; font-size: 1.3rem;">S/ <span id="monto-exacto-display">0.00</span></strong>
+      <!-- Validación de pago (polling) -->
+      <div id="validacion-pago" class="hidden" style="text-align:center; padding:2rem 0;">
+        <h3 style="color:var(--tinka-green);">⏳ Validando tu pago...</h3>
+        <p>Transfiere exactamente <strong id="val-total">S/ 0.00</strong><br>
+           al Yape <strong>993 897 647</strong><br>
+           (Artesanía Mariposita)</p>
+        <p style="color:#666; font-size:0.9rem;">
+          📱 Una vez yapeado, la validación es automática.<br>
+          No cierres esta ventana.
         </p>
-        <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
-          al Yape <strong id="yape-numero-validacion">993 897 647</strong>
-          (<span id="yape-nombre-validacion">Artesanía Mariposita</span>)
-        </p>
-        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-          <p style="margin: 0; font-size: 0.85rem; color: #856404;">
-            📱 Una vez yapeado, la validación es automática.<br>
-            No cierres esta ventana.
-          </p>
-        </div>
-        <div id="contador-expiracion" style="font-size: 0.9rem; color: #666; margin-top: 1rem;">
-          Tiempo restante: <strong id="tiempo-restante">15:00</strong>
-        </div>
-        <div id="estado-validacion" style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
-          🔍 Buscando confirmación de pago...
-        </div>
+        <p>Tiempo restante: <strong id="val-tiempo">15:00</strong></p>
+        <p style="color:var(--tinka-green); font-weight:bold;">🔍 Buscando confirmación de pago...</p>
       </div>
 
-      <!-- Resultado de la compra -->
+      <!-- Resultado de compra -->
       <div id="resultado-compra" class="hidden"></div>
+
     </div>
   </div>
 
-  <!-- ✅ IMPORTANTE: Esta línea CARGA el JavaScript -->
-  <script src="/js/sorteos.js"></script>
+  <!-- ============================================================
+       SCRIPTS
+       ⚠️ IMPORTANTE: type="module" es OBLIGATORIO para que los
+       imports de ES6 funcionen en el navegador
+  ============================================================= -->
+  <script type="module" src="/js/sorteos.js"></script>
+
 </body>
 </html>
