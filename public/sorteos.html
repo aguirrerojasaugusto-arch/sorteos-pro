@@ -1,96 +1,82 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sorteos Disponibles - Juega y Gana</title>
-<link rel="stylesheet" href="/css/sorteos.css?v=17">
-<style>
-  .card-countdown{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 10px;border-radius:999px;background:#007B4B;color:#fff;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums;}
-  .card-countdown.warn{background:#e67e22;}
-  .card-countdown.expired{background:#C8102E;}
-  .btn-participar.is-finalizado{background:#999!important;cursor:not-allowed!important;}
-  
-  /* Estilos para el nuevo selector de cantidad */
-  .cantidad-wrapper { display: flex; align-items: center; gap: 10px; }
-  .btn-cantidad { width: 42px; height: 42px; font-size: 1.2rem; font-weight: bold; border: 1px solid #ccc; background: #f9f9f9; border-radius: 8px; cursor: pointer; color: #333; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-  .btn-cantidad:hover { background: #e0e0e0; }
-  .input-cantidad { text-align: center; font-weight: bold; font-size: 1.2rem; width: 70px; border: 1px solid #ccc; border-radius: 8px; height: 42px; }
-  /* Ocultar flechas nativas del input number */
-  .input-cantidad::-webkit-outer-spin-button, .input-cantidad::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .input-cantidad[type=number] { -moz-appearance: textfield; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sorteos Disponibles - Juega y Gana</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/sorteos.css">
 </head>
 <body>
-<header class="topbar">
-  <a href="/" class="btn-back">← Volver al Inicio</a>
-  <div class="brand">Juega y Gana</div>
-</header>
+  <!-- Topbar -->
+  <div class="topbar">
+    <a href="/" class="btn-back">← Volver al Inicio</a>
+    <div class="brand">Juega y Gana</div>
+  </div>
 
-<div class="main-container">
-  <div class="col-left">
-    <div class="banner-container">
-      <div id="banner-rotativo" class="banner-rotativo"></div>
-    </div>
-    
-    <div class="section-header-sorteos">
+  <div class="main-container">
+    <!-- Columna Izquierda: Banner + Sorteos -->
+    <div class="col-left">
       <h2 class="section-title">Sorteos Disponibles</h2>
-    </div>
-    
-    <div class="carrusel-sorteos-wrapper">
-      <button class="arrow-btn-sorteos arrow-btn-sorteos-left" onclick="scrollSorteos(-1)" aria-label="Anterior">❮</button>
-      <button class="arrow-btn-sorteos arrow-btn-sorteos-right" onclick="scrollSorteos(1)" aria-label="Siguiente">❯</button>
-      <div class="grid-sorteos" id="grid-sorteos"></div>
-    </div>
-  </div>
 
-  <div class="col-right">
-    <div class="promos-header">
-      <h3>Promociones</h3>
-      <div class="arrow-buttons">
-        <button onclick="scrollPromos(-1)">⬆</button>
-        <button onclick="scrollPromos(1)">⬇</button>
-      </div>
-    </div>
-    <div class="promos-viewport" id="promos-viewport">
-      <div class="promos-track" id="promos-track"></div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL DE COMPRA -->
-<div class="modal-overlay hidden" id="modal-compra">
-  <div class="modal-content">
-    <button class="btn-close" onclick="cerrarModal()">✖</button>
-    <h2 id="modal-titulo">Participar en el Sorteo</h2>
-    
-    <form id="form-compra" onsubmit="comprarTickets(event)">
-      <input type="hidden" id="compra-sorteo-id">
-      <input type="hidden" id="compra-precio">
-      
-      <!-- ✅ NUEVO: Instrucciones de pago dinámicas -->
-      <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 12px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
-        <p style="margin: 0; font-size: 0.95rem; color: #1b5e20;"><strong>💳 Instrucciones de Pago:</strong></p>
-        <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #333;">
-          Yapea o Plinea al <strong id="pago-numero">Cargando...</strong><br>
-          a nombre de <strong id="pago-nombre">Cargando...</strong>
-        </p>
+      <!-- Banner rotativo -->
+      <div class="banner-container">
+        <div id="banner-rotativo" class="banner-rotativo"></div>
       </div>
 
-      <!-- DNI PRIMERO -->
-      <div class="form-group">
-        <label>DNI <span id="dni-status" class="status-badge"></span></label>
-        <input type="text" id="inp-dni" maxlength="8" inputmode="numeric" placeholder="Ingrese 8 dígitos" required oninput="this.value = this.value.toUpperCase()">
+      <!-- Carrusel de sorteos -->
+      <div class="carrusel-sorteos-wrapper">
+        <button class="arrow-btn-sorteos arrow-btn-sorteos-left" onclick="scrollSorteos(-1)">❮</button>
+        <div id="grid-sorteos" class="grid-sorteos"></div>
+        <button class="arrow-btn-sorteos arrow-btn-sorteos-right" onclick="scrollSorteos(1)">❯</button>
       </div>
+    </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label>Celular</label>
-          <input type="text" id="inp-celular" maxlength="9" inputmode="numeric" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+    <!-- Columna Derecha: Promos -->
+    <div class="col-right">
+      <div class="promos-header">
+        <h3>Promociones</h3>
+        <div class="arrow-buttons">
+          <button onclick="scrollPromos(-1)">⬆</button>
+          <button onclick="scrollPromos(1)">⬇</button>
         </div>
+      </div>
+      <div id="promos-viewport" class="promos-viewport">
+        <div id="promos-track" class="promos-track"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Compra -->
+  <div id="modal-compra" class="modal-overlay hidden">
+    <div class="modal-content">
+      <button class="btn-close" onclick="cerrarModal()">✖</button>
+      <h2 id="modal-titulo">Participar en el Sorteo</h2>
+
+      <!-- Formulario de compra -->
+      <form id="form-compra" onsubmit="comprarTickets(event)">
+        <div class="form-group">
+          <label>💳 Instrucciones de Pago:</label>
+          <p style="font-size:0.9rem; color:#666; margin-top:0.3rem;">
+            Yapea o Plinea al <strong id="pago-numero">Cargando...</strong><br>
+            a nombre de <strong id="pago-nombre">Cargando...</strong>
+          </p>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>DNI <span id="dni-status" class="status-badge"></span></label>
+            <input type="text" id="inp-dni" maxlength="8" required>
+          </div>
+          <div class="form-group">
+            <label>Celular</label>
+            <input type="text" id="inp-celular" maxlength="9">
+          </div>
+        </div>
+
         <div class="form-group">
           <label>Departamento</label>
-          <select id="inp-departamento" required style="text-transform: uppercase;">
+          <select id="inp-departamento">
             <option value="">Selecciona un departamento...</option>
             <option value="AMAZONAS">AMAZONAS</option>
             <option value="ANCASH">ANCASH</option>
@@ -119,80 +105,75 @@
             <option value="UCAYALI">UCAYALI</option>
           </select>
         </div>
-      </div>
 
-      <div class="form-row">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombres</label>
+            <input type="text" id="inp-nombres" required>
+          </div>
+          <div class="form-group">
+            <label>Apellidos</label>
+            <input type="text" id="inp-apellidos" required>
+          </div>
+        </div>
+
         <div class="form-group">
-          <label>Nombres</label>
-          <input type="text" id="inp-nombres" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+          <label>Cantidad de Tickets (S/ <span id="precio-unitario">0</span> c/u)</label>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <button type="button" onclick="cambiarCantidad(-1)" style="width:40px; height:40px; border-radius:50%; border:1px solid #ccc; background:white; font-size:1.2rem; cursor:pointer;">-</button>
+            <input type="number" id="inp-cantidad" min="1" max="50" value="1" style="text-align:center; flex:1;" required>
+            <button type="button" onclick="cambiarCantidad(1)" style="width:40px; height:40px; border-radius:50%; border:1px solid #ccc; background:white; font-size:1.2rem; cursor:pointer;">+</button>
+          </div>
         </div>
+
         <div class="form-group">
-          <label>Apellidos</label>
-          <input type="text" id="inp-apellidos" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+          <label>Comprobante de Pago (Yape / Plin)</label>
+          <input type="file" id="inp-comprobante" accept="image/*" required>
+          <img id="preview-comprobante" class="preview-img" style="display:none; max-width:100%; margin-top:0.5rem; border-radius:8px;">
+          <p style="font-size:0.8rem; color:#666; margin-top:0.3rem;">
+            📸 Sube la captura de pantalla de tu pago (Yape/Plin, vertical). Máx. 5MB. No se aceptan duplicados.
+          </p>
+          <div id="error-comprobante" style="display:none; color:#d31145; font-size:0.85rem; margin-top:0.3rem;"></div>
+        </div>
+
+        <div class="resumen-total">
+          Total a Pagar: <span id="total-pagar">S/ 0.00</span>
+        </div>
+
+        <button type="submit" class="btn-submit">Confirmar Compra</button>
+        <input type="hidden" id="compra-sorteo-id">
+        <input type="hidden" id="compra-precio">
+      </form>
+
+      <!-- ✅ NUEVO: Pantalla de validación de pago -->
+      <div id="validacion-pago" class="hidden" style="text-align: center; padding: 2rem;">
+        <h3 style="color: var(--tinka-green); margin-bottom: 1rem;">⏳ Validando tu pago...</h3>
+        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">
+          Transfiere exactamente <strong style="color: #d31145; font-size: 1.3rem;">S/ <span id="monto-exacto-display">0.00</span></strong>
+        </p>
+        <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+          al Yape <strong id="yape-numero-validacion">993 897 647</strong>
+          (<span id="yape-nombre-validacion">Artesanía Mariposita</span>)
+        </p>
+        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+          <p style="margin: 0; font-size: 0.85rem; color: #856404;">
+            📱 Una vez yapeado, la validación es automática.<br>
+            No cierres esta ventana.
+          </p>
+        </div>
+        <div id="contador-expiracion" style="font-size: 0.9rem; color: #666; margin-top: 1rem;">
+          Tiempo restante: <strong id="tiempo-restante">15:00</strong>
+        </div>
+        <div id="estado-validacion" style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+          🔍 Buscando confirmación de pago...
         </div>
       </div>
-      
-      <!-- ✅ NUEVO: Selector de cantidad visual -->
-      <div class="form-group">
-        <label>Cantidad de Tickets (S/ <span id="precio-unitario">0</span> c/u)</label>
-        <div class="cantidad-wrapper">
-          <button type="button" class="btn-cantidad" onclick="cambiarCantidad(-1)">-</button>
-          <input type="number" id="inp-cantidad" class="input-cantidad" min="1" max="50" value="1" required readonly>
-          <button type="button" class="btn-cantidad" onclick="cambiarCantidad(1)">+</button>
-        </div>
-      </div>
-      
-      <div class="form-group">
-        <label>Comprobante de Pago (Yape / Plin)</label>
-        <input type="file" id="inp-comprobante" accept="image/png, image/jpeg, image/jpg" required style="border: 1px dashed #ccc; padding: 0.5rem; background: #f9f9f9; width: 100%; border-radius: 8px;">
-        
-        <!-- ✅ NUEVO: Vista previa de la imagen -->
-        <img id="preview-comprobante" style="display: none; max-width: 100%; max-height: 200px; margin-top: 10px; border-radius: 8px; object-fit: contain; border: 1px solid #ddd;">
-        
-        <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 6px;">
-          📸 Sube la captura de pantalla de tu pago (Yape/Plin, vertical). Máx. 5MB. No se aceptan duplicados.
-        </small>
-        <div id="error-comprobante" style="display:none; margin-top:6px; padding:8px 10px; background:#fdecea; color:#b71c1c; border:1px solid #f5c6cb; border-radius:6px; font-size:0.85rem;"></div>
-      </div>
 
-      <div class="resumen-total">
-        Total a Pagar: <span id="total-pagar">S/ 0.00</span>
-      </div>
+      <!-- Resultado de la compra -->
+      <div id="resultado-compra" class="hidden"></div>
+    </div>
+  </div>
 
-      <button type="submit" class="btn-submit">Confirmar Compra</button>
-      <!-- Agrega esto dentro del modal-compra, después del form-compra -->
-<div id="validacion-pago" class="hidden" style="text-align: center; padding: 2rem;">
-  <h3 style="color: var(--tinka-green); margin-bottom: 1rem;">⏳ Validando tu pago...</h3>
-  <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">
-    Transfiere exactamente <strong style="color: #d31145; font-size: 1.3rem;">S/ <span id="monto-exacto-display">0.00</span></strong>
-  </p>
-  <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
-    al Yape <strong id="yape-numero-validacion">993 897 647</strong>
-    (<span id="yape-nombre-validacion">Artesanía Mariposita</span>)
-  </p>
-  <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-    <p style="margin: 0; font-size: 0.85rem; color: #856404;">
-      📱 Una vez yapeado, la validación es automática.<br>
-      No cierres esta ventana.
-    </p>
-  </div>
-  <div id="contador-expiracion" style="font-size: 0.9rem; color: #666; margin-top: 1rem;">
-    Tiempo restante: <strong id="tiempo-restante">15:00</strong>
-  </div>
-  <div id="estado-validacion" style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
-    🔍 Buscando confirmación de pago...
-  </div>
-</div>
-
-<!-- Reemplaza el div#resultado-compra existente por este -->
-<div id="resultado-compra" class="hidden" style="text-align: center; padding: 2rem;">
-  <!-- Se llena dinámicamente desde sorteos.js -->
-</div>
-    </form>
-    <div id="resultado-compra" class="hidden" style="margin-top:1rem; text-align:center;"></div>
-  </div>
-</div>
-
-<script type="module" src="/js/sorteos.js"></script>
+  <script type="module" src="/js/sorteos.js"></script>
 </body>
 </html>
