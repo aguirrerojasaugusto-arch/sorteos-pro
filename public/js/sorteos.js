@@ -7,12 +7,69 @@ import { renderizarTarjetas, iniciarAutoScrollLento, scrollSorteos, construirCin
 import { abrirModal, cerrarModal, cambiarCantidad, actualizarTotal } from './modules/sorteos-modal.js';
 import { inicializarCompra, comprarTickets } from './modules/sorteos-compra.js';
 
-// ✅ CRUCIAL: Exponer funciones al objeto global window para que el HTML las encuentre
+// ✅ Exponer funciones al window para que el HTML las encuentre
 window.abrirModal = abrirModal;
 window.cerrarModal = cerrarModal;
 window.cambiarCantidad = cambiarCantidad;
 window.scrollPromos = scrollPromos;
 window.scrollSorteos = scrollSorteos;
-window.comprarTickets = comprarTickets; // <-- ESTO ES CLAVE
+window.comprarTickets = comprarTickets;
 
-// ... resto de tu código de inicialización (cargarDatos, event listeners, etc.)
+/* ============================================================
+   ✅ FUNCIÓN PRINCIPAL: Cargar datos del backend
+   ============================================================ */
+async function cargarDatos() {
+  try {
+    console.log('🔄 Cargando datos del backend...');
+    const res = await fetch('/api/public/bootstrap?t=' + Date.now());
+    const data = await res.json();
+    console.log('📦 Datos recibidos:', data);
+
+    state.sorteos = data.sorteos || [];
+    state.config = data.config || {};
+
+    // Banners: usar los de la BD, o fallback a banner_lateral de sorteos
+    let bannersA_Mostrar = [];
+    if (data.banners && data.banners.length > 0) {
+      bannersA_Mostrar = data.banners;
+    } else {
+      bannersA_Mostrar = state.sorteos
+        .filter(s => s.banner_lateral)
+        .map(s => ({ url_imagen: s.banner_lateral }));
+    }
+    console.log('🖼️ Banners a mostrar:', bannersA_Mostrar.length);
+
+    // Promos
+    console.log('📢 Promos recibidas:', data.promos_laterales?.length || 0);
+
+    // Renderizar todo
+    inicializarBanner(bannersA_Mostrar);
+    inicializarPromos(data.promos_laterales || []);
+    renderizarTarjetas();
+    iniciarAutoScrollLento();
+    iniciarContadores();
+    inicializarBusquedaDNI();
+    inicializarCompra();
+
+    console.log('✅ Datos cargados correctamente');
+  } catch (e) {
+    console.error('❌ Error al cargar datos:', e);
+  }
+}
+
+/* ============================================================
+   ✅ Event listener para resize
+   ============================================================ */
+window.addEventListener('resize', () => {
+  const viewport = document.getElementById('promos-viewport');
+  if (viewport && viewport.querySelector('.promo-card')) ajustarPromos();
+  const ws = document.querySelector('.carrusel-sorteos-wrapper');
+  if (ws && ws.querySelector('.card-sorteo')) {
+    construirCintaSorteos();
+  }
+});
+
+/* ============================================================
+   ✅ Iniciar aplicación
+   ============================================================ */
+cargarDatos();
