@@ -4,8 +4,8 @@ const state = {
   bannerIndex: 0,
   bannerTimer: null,
   config: {},
-  compraActualId: null, // ✅ NUEVO: ID de la compra en proceso
-  pollingTimer: null    // ✅ NUEVO: Timer del polling
+  compraActualId: null,
+  pollingTimer: null
 };
 
 const PROMO_SPEED = 18;
@@ -401,7 +401,6 @@ function abrirModal(idSorteo) {
     return alert('Este sorteo ya ha finalizado.');
   }
 
-  // ✅ Limpiar polling anterior si existe
   detenerPolling();
 
   state.sorteoSeleccionado = sorteo;
@@ -417,7 +416,7 @@ function abrirModal(idSorteo) {
   document.getElementById('modal-compra').classList.remove('hidden');
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
-  document.getElementById('validacion-pago').classList.add('hidden'); // ✅ Ocultar validación
+  document.getElementById('validacion-pago').classList.add('hidden');
   document.getElementById('form-compra').reset();
   document.getElementById('dni-status').textContent = '';
   document.getElementById('dni-status').className = 'status-badge';
@@ -431,7 +430,7 @@ function abrirModal(idSorteo) {
 }
 
 function cerrarModal() {
-  detenerPolling(); // ✅ Limpiar polling al cerrar
+  detenerPolling();
   document.getElementById('modal-compra').classList.add('hidden');
 }
 
@@ -530,7 +529,7 @@ async function validarComprobanteYapePlin(file) {
   });
 }
 
-/* ====== ✅ NUEVO: Funciones de polling ====== */
+/* ====== Funciones de polling ====== */
 function detenerPolling() {
   if (state.pollingTimer) {
     clearInterval(state.pollingTimer);
@@ -542,20 +541,17 @@ function detenerPolling() {
 function iniciarPolling(ticketId, montoExacto) {
   state.compraActualId = ticketId;
 
-  // Mostrar pantalla de validación
   document.getElementById('form-compra').classList.add('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
   document.getElementById('validacion-pago').classList.remove('hidden');
 
-  // Mostrar monto exacto
   document.getElementById('monto-exacto-display').textContent = montoExacto.toFixed(2);
   const config = state.config || {};
   document.getElementById('yape-numero-validacion').textContent = config.contacto_telefono || '993 897 647';
   document.getElementById('yape-nombre-validacion').textContent = config.brand_name || 'Artesanía Mariposita';
 
-  // Iniciar polling cada 3 segundos
   let intentos = 0;
-  const maxIntentos = 300; // 15 minutos / 3 segundos = 300 intentos
+  const maxIntentos = 300;
 
   state.pollingTimer = setInterval(async () => {
     intentos++;
@@ -578,7 +574,6 @@ function iniciarPolling(ticketId, montoExacto) {
           cerrarModal();
         }, 2000);
       } else if (data.estado === 'pendiente') {
-        // Actualizar contador
         if (data.segundos_restantes !== undefined) {
           const mins = Math.floor(data.segundos_restantes / 60);
           const secs = data.segundos_restantes % 60;
@@ -606,32 +601,63 @@ function mostrarExitoCompra(ticket) {
   const resultDiv = document.getElementById('resultado-compra');
   resultDiv.classList.remove('hidden');
 
+  const sorteo = state.sorteoSeleccionado;
+  const fechaSorteo = sorteo.fecha_sorteo 
+    ? new Date(sorteo.fecha_sorteo).toLocaleDateString('es-PE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        timeZone: 'America/Lima'
+      })
+    : 'Por definir';
+
   let html = `
-    <div style="background: #d4edda; border: 2px solid #28a745; padding: 2rem; border-radius: 12px;">
-      <h3 style="color: #155724; margin-bottom: 1rem; font-size: 1.5rem;">✅ ¡Pago Confirmado!</h3>
-      <p style="margin-bottom: 1rem; font-size: 1rem; color: #155724;">
-        <strong>Cliente:</strong> ${ticket.cliente_nombre || 'N/A'}<br>
-        <strong>DNI:</strong> ${ticket.cliente_dni || 'N/A'}
-      </p>
-      <div style="background: white; padding: 1.5rem; border-radius: 8px; margin: 1rem 0; border: 2px dashed #28a745;">
-        <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Tu número de ticket:</div>
-        <div style="font-size: 2.5rem; font-weight: bold; color: #d31145; letter-spacing: 2px;">
-          #${formatearCodigo(ticket.codigo_ticket)}
+    <div class="ticket-resumen-compacto">
+      <div class="ticket-header">
+        <h3>🎟️ Resumen de tus Tickets</h3>
+      </div>
+      
+      <div class="ticket-info-row">
+        <div class="ticket-info-item">
+          <span class="ticket-label">👤 NOMBRE COMPLETO</span>
+          <span class="ticket-value">${ticket.cliente_nombre || 'N/A'}</span>
+        </div>
+        <div class="ticket-info-item total-box">
+          <span class="ticket-label">🎟️ TOTAL COMPRADOS</span>
+          <span class="ticket-value total-number">1</span>
         </div>
       </div>
-      <p style="font-size: 0.85rem; color: #666; margin-top: 1rem;">
-        Guarda este número. Lo necesitarás para verificar si ganaste.
-      </p>
-      <button onclick="cerrarModal(); location.reload();"
-              style="margin-top: 1rem; padding: 0.8rem 2rem; background: var(--tinka-green, #28a745); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem;">
+
+      <div class="ticket-numeros-box">
+        <div class="ticket-numeros-label">🎯 TU NÚMERO:</div>
+        <div class="ticket-numeros">#${formatearCodigo(ticket.codigo_ticket)}</div>
+      </div>
+
+      <div class="ticket-detalles">
+        <div class="ticket-detalle-item">
+          <span class="detalle-label">Sorteo:</span>
+          <span class="detalle-value">${sorteo.nombre}</span>
+        </div>
+        <div class="ticket-detalle-item">
+          <span class="detalle-label">Fecha del Sorteo:</span>
+          <span class="detalle-value">${fechaSorteo}</span>
+        </div>
+        <div class="ticket-detalle-item">
+          <span class="detalle-label">Total Pagado:</span>
+          <span class="detalle-value total-pagado">S/ ${ticket.total_pagado.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <button onclick="cerrarModal(); location.reload();" class="btn-aceptar-ticket">
         Aceptar
       </button>
     </div>
   `;
+
   resultDiv.innerHTML = html;
 }
 
-/* ====== ✅ COMPRA MODIFICADA ====== */
+/* ====== ✅ COMPRA CON RESUMEN COMPACTO ====== */
 async function comprarTickets(e) {
   e.preventDefault();
   const btn = e.target.querySelector('button[type="submit"]');
@@ -698,16 +724,70 @@ async function comprarTickets(e) {
 
     if (res.ok) {
       const data = await res.json();
+      
+      // ✅ NUEVO: Mostrar resumen compacto tipo ticket digital
+      document.getElementById('form-compra').classList.add('hidden');
+      const resultDiv = document.getElementById('resultado-compra');
+      resultDiv.classList.remove('hidden');
 
-      // ✅ NUEVO: Iniciar polling en vez de mostrar tickets inmediatamente
-      if (data.tickets && data.tickets.length > 0 && data.total_pagado) {
-        // Usar el ID del primer ticket para el polling
-        const primerTicketId = data.tickets[0].id;
-        iniciarPolling(primerTicketId, data.total_pagado);
-      } else {
-        // Fallback: si no hay total_pagado, mostrar error
-        mostrarErrorComprobante('❌ Error al procesar la compra. Intenta de nuevo.');
-      }
+      // Obtener datos del sorteo
+      const sorteo = state.sorteoSeleccionado;
+      const fechaSorteo = sorteo.fecha_sorteo 
+        ? new Date(sorteo.fecha_sorteo).toLocaleDateString('es-PE', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            timeZone: 'America/Lima'
+          })
+        : 'Por definir';
+
+      // Extraer códigos de ticket
+      const codigosTicket = data.tickets.map(t => formatearCodigo(t.codigo_ticket)).join(' · ');
+
+      let html = `
+        <div class="ticket-resumen-compacto">
+          <div class="ticket-header">
+            <h3>🎟️ Resumen de tus Tickets</h3>
+          </div>
+          
+          <div class="ticket-info-row">
+            <div class="ticket-info-item">
+              <span class="ticket-label">👤 NOMBRE COMPLETO</span>
+              <span class="ticket-value">${nombres} ${apellidos}</span>
+            </div>
+            <div class="ticket-info-item total-box">
+              <span class="ticket-label">🎟️ TOTAL COMPRADOS</span>
+              <span class="ticket-value total-number">${data.tickets.length}</span>
+            </div>
+          </div>
+
+          <div class="ticket-numeros-box">
+            <div class="ticket-numeros-label">🎯 TUS NÚMEROS:</div>
+            <div class="ticket-numeros">${codigosTicket}</div>
+          </div>
+
+          <div class="ticket-detalles">
+            <div class="ticket-detalle-item">
+              <span class="detalle-label">Sorteo:</span>
+              <span class="detalle-value">${sorteo.nombre}</span>
+            </div>
+            <div class="ticket-detalle-item">
+              <span class="detalle-label">Fecha del Sorteo:</span>
+              <span class="detalle-value">${fechaSorteo}</span>
+            </div>
+            <div class="ticket-detalle-item">
+              <span class="detalle-label">Total Pagado:</span>
+              <span class="detalle-value total-pagado">S/ ${data.total_pagado.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <button onclick="cerrarModal(); location.reload();" class="btn-aceptar-ticket">
+            Aceptar
+          </button>
+        </div>
+      `;
+
+      resultDiv.innerHTML = html;
     } else {
       const err = await res.json();
       mostrarErrorComprobante('❌ ' + (err.error || 'Error en la compra.'));
