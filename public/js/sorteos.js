@@ -1,6 +1,3 @@
-/* ============================================================
-   ESTADO GLOBAL
-   ============================================================ */
 const state = {
   sorteos: [],
   sorteoSeleccionado: null,
@@ -28,9 +25,6 @@ let sorteosLastTs = null;
 let sorteosPaused = false;
 let dniDebounceTimer = null;
 
-/* ============================================================
-   RELOJ REAL DE LIMA (UTC-5)
-   ============================================================ */
 function fechaObjetivoLima(s) {
   const fecha = String(s.fecha_sorteo || '').trim();
   if (!fecha) return null;
@@ -88,31 +82,18 @@ function iniciarContadores() {
   window._cdTimer = setInterval(tick, 1000);
 }
 
-/* ============================================================
-   CARGA DE DATOS INICIAL
-   ============================================================ */
 async function cargarDatos() {
   try {
-    console.log('🔄 Cargando datos del backend...');
     const res = await fetch('/api/public/bootstrap?t=' + Date.now());
     const data = await res.json();
-    console.log('📦 Datos recibidos:', data);
-
     state.sorteos = data.sorteos || [];
     state.config = data.config || {};
-
     let bannersA_Mostrar = [];
     if (data.banners && data.banners.length > 0) {
       bannersA_Mostrar = data.banners;
     } else {
-      bannersA_Mostrar = state.sorteos
-        .filter(s => s.banner_lateral)
-        .map(s => ({ url_imagen: s.banner_lateral }));
+      bannersA_Mostrar = state.sorteos.filter(s => s.banner_lateral).map(s => ({ url_imagen: s.banner_lateral }));
     }
-    console.log('🖼️ Banners a mostrar:', bannersA_Mostrar.length);
-    console.log('📢 Promos recibidas:', data.promos_laterales?.length || 0);
-    console.log('🎲 Sorteos recibidos:', state.sorteos.length);
-
     inicializarBanner(bannersA_Mostrar);
     inicializarPromos(data.promos_laterales || []);
     renderizarTarjetas();
@@ -120,16 +101,9 @@ async function cargarDatos() {
     iniciarContadores();
     inicializarBusquedaDNI();
     inicializarValidadorComprobante();
-
-    console.log('✅ Datos cargados correctamente');
-  } catch (e) {
-    console.error('❌ Error al cargar datos:', e);
-  }
+  } catch (e) { console.error('Error al cargar:', e); }
 }
 
-/* ============================================================
-   AUTOCOMPLETADO POR DNI
-   ============================================================ */
 function inicializarBusquedaDNI() {
   const dniInput = document.getElementById('inp-dni');
   if (!dniInput) return;
@@ -193,19 +167,14 @@ function setCamposClienteEditable(esEditable) {
   document.getElementById('inp-departamento').disabled = !esEditable;
 }
 
-/* ============================================================
-   BANNER ROTATIVO
-   ============================================================ */
 function inicializarBanner(banners) {
   const container = document.getElementById('banner-rotativo');
   if (!container) return;
-  if (!banners || banners.length === 0) {
+  if (banners.length === 0) {
     container.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; color:#999;">Sin banners configurados</div>';
     return;
   }
-  container.innerHTML = banners.map((b, i) =>
-    `<img src="${b.url_imagen}" class="${i === 0 ? 'active' : ''}" alt="Banner ${i+1}">`
-  ).join('');
+  container.innerHTML = banners.map((b, i) => `<img src="${b.url_imagen}" class="${i === 0 ? 'active' : ''}" alt="Banner ${i+1}">`).join('');
   const slides = container.querySelectorAll('img');
   if (slides.length > 1) {
     if (state.bannerTimer) clearInterval(state.bannerTimer);
@@ -218,9 +187,6 @@ function inicializarBanner(banners) {
   }
 }
 
-/* ============================================================
-   PROMOS (cinta vertical)
-   ============================================================ */
 function inicializarPromos(promos) {
   const viewport = document.getElementById('promos-viewport');
   const track = document.getElementById('promos-track');
@@ -233,12 +199,7 @@ function inicializarPromos(promos) {
   let base = promosBase.slice();
   while (base.length < PROMO_VISIBLE) base = base.concat(promosBase);
   const lista = base.concat(base);
-  track.innerHTML = lista.map(p =>
-    `<div class="promo-card">
-       <img src="${p.url_imagen}" alt="Promo">
-       <div class="promo-fecha">${p.fecha || ''}</div>
-     </div>`
-  ).join('');
+  track.innerHTML = lista.map(p => `<div class="promo-card"><img src="${p.url_imagen}" alt="Promo"><div class="promo-fecha">${p.fecha || ''}</div></div>`).join('');
   viewport.onmouseenter = () => promosPaused = true;
   viewport.onmouseleave = () => promosPaused = false;
   requestAnimationFrame(() => { ajustarPromos(); iniciarPromosLoop(); });
@@ -295,45 +256,18 @@ function scrollPromos(direction) {
   track.style.transform = `translateY(${trackOffset}px)`;
 }
 
-/* ============================================================
-   SORTEOS (cinta horizontal)
-   ============================================================ */
 function htmlTarjetas(sorteos) {
   const ahora = Date.now();
   return sorteos.map(s => {
-    const imgUrl = s.imagen
-      ? (s.imagen.startsWith('http') ? s.imagen : window.location.origin + s.imagen)
-      : '/uploads/default.jpg';
+    const imgUrl = s.imagen ? (s.imagen.startsWith('http') ? s.imagen : window.location.origin + s.imagen) : '/uploads/default.jpg';
     const objetivo = fechaObjetivoLima(s);
     const restanteMs = objetivo ? objetivo.getTime() - ahora : null;
     const bloqueado = objetivo && restanteMs <= 0;
-    const fechaTexto = objetivo
-      ? objetivo.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Lima' })
-      : 'Por definir';
-    const cdHtml = objetivo
-      ? `<div class="card-countdown ${restanteMs <= 0 ? 'expired' : (restanteMs < 3600000 ? 'warn' : '')}">${bloqueado ? '⛔ Sorteo finalizado' : '⏳ ' + fmtRestante(restanteMs)}</div>`
-      : '';
-    const btnHtml = bloqueado
-      ? `<button class="btn-participar is-finalizado" disabled>Sorteo Finalizado</button>`
-      : `<button class="btn-participar" onclick="abrirModal(${s.id})">Participar</button>`;
+    const fechaTexto = objetivo ? objetivo.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Lima' }) : 'Por definir';
+    const cdHtml = objetivo ? `<div class="card-countdown ${restanteMs <= 0 ? 'expired' : (restanteMs < 3600000 ? 'warn' : '')}">${bloqueado ? '⛔ Sorteo finalizado' : '⏳ ' + fmtRestante(restanteMs)}</div>` : '';
+    const btnHtml = bloqueado ? `<button class="btn-participar is-finalizado" disabled>Sorteo Finalizado</button>` : `<button class="btn-participar" onclick="abrirModal(${s.id})">Participar</button>`;
     const premioTexto = s.premio_descripcion ? s.premio_descripcion : 'Premio Sorpresa';
-    return `
-      <div class="card-sorteo" data-fecha="${s.fecha_sorteo || ''}">
-        <img src="${imgUrl}" class="card-img" alt="${s.nombre}">
-        <div class="card-content">
-          <div>
-            <div class="card-title">${s.nombre}</div>
-            <div class="card-pozo" style="font-size: 1.1rem; color:#007B4B; margin-bottom: 0.5rem;">${premioTexto}</div>
-            <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem;">Cierra: ${fechaTexto}</div>
-            ${cdHtml}
-          </div>
-          <div>
-            <div class="card-precio">Ticket: S/ ${s.precio_jugada}</div>
-            ${btnHtml}
-          </div>
-        </div>
-      </div>
-    `;
+    return `<div class="card-sorteo" data-fecha="${s.fecha_sorteo || ''}"><img src="${imgUrl}" class="card-img" alt="${s.nombre}"><div class="card-content"><div><div class="card-title">${s.nombre}</div><div class="card-pozo" style="font-size: 1.1rem; color:#007B4B; margin-bottom: 0.5rem;">${premioTexto}</div><div style="font-size: 0.8rem; color: #666; margin-bottom: 0.3rem;">Cierra: ${fechaTexto}</div>${cdHtml}</div><div><div class="card-precio">Ticket: S/ ${s.precio_jugada}</div>${btnHtml}</div></div></div>`;
   }).join('');
 }
 
@@ -417,42 +351,28 @@ window.addEventListener('resize', () => {
   if (ws && ws.querySelector('.card-sorteo')) { construirCintaSorteos(); }
 });
 
-/* ============================================================
-   MODAL / COMPRA
-   ============================================================ */
 function abrirModal(idSorteo) {
-  console.log('🎯 abrirModal llamado con id:', idSorteo);
   const sorteo = state.sorteos.find(s => s.id === idSorteo);
-  if (!sorteo) {
-    console.error('❌ Sorteo no encontrado:', idSorteo);
-    return alert('Sorteo no encontrado. Recarga la página.');
-  }
+  if (!sorteo) return;
   const objetivo = fechaObjetivoLima(sorteo);
   if (objetivo && objetivo.getTime() <= Date.now()) {
     return alert('Este sorteo ya ha finalizado.');
   }
-
-  detenerPolling();
-
   state.sorteoSeleccionado = sorteo;
   document.getElementById('compra-sorteo-id').value = String(sorteo.id);
   document.getElementById('compra-precio').value = sorteo.precio_jugada;
   document.getElementById('precio-unitario').textContent = sorteo.precio_jugada;
   document.getElementById('modal-titulo').textContent = `Participar en: ${sorteo.nombre}`;
-
   const config = state.config || {};
   document.getElementById('pago-numero').textContent = config.contacto_telefono || '993 897 647';
   document.getElementById('pago-nombre').textContent = config.brand_name || 'Artesanía Mariposita';
-
   document.getElementById('modal-compra').classList.remove('hidden');
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
-  const validacionDiv = document.getElementById('validacion-pago');
-  if (validacionDiv) validacionDiv.classList.add('hidden');
+  document.getElementById('validacion-pago').classList.add('hidden');
   document.getElementById('form-compra').reset();
   document.getElementById('dni-status').textContent = '';
   document.getElementById('dni-status').className = 'status-badge';
-
   const preview = document.getElementById('preview-comprobante');
   if (preview) { preview.style.display = 'none'; preview.src = ''; }
   ocultarErrorComprobante();
@@ -462,7 +382,6 @@ function abrirModal(idSorteo) {
 }
 
 function cerrarModal() {
-  detenerPolling();
   document.getElementById('modal-compra').classList.add('hidden');
 }
 
@@ -489,9 +408,6 @@ function formatearCodigo(codigo) {
   return partes[partes.length - 1];
 }
 
-/* ============================================================
-   VALIDACIÓN DE COMPROBANTE
-   ============================================================ */
 function mostrarErrorComprobante(msg) {
   const box = document.getElementById('error-comprobante');
   if (box) { box.textContent = msg; box.style.display = 'block'; }
@@ -562,119 +478,11 @@ async function validarComprobanteYapePlin(file) {
   });
 }
 
-/* ============================================================
-   POLLING (validación automática de pago Yape)
-   ============================================================ */
-function detenerPolling() {
-  if (state.pollingTimer) {
-    clearInterval(state.pollingTimer);
-    state.pollingTimer = null;
-  }
-  state.compraActualId = null;
-}
-
-function iniciarPolling(ticketId, montoExacto) {
-  state.compraActualId = ticketId;
-  const validacionDiv = document.getElementById('validacion-pago');
-  if (!validacionDiv) return; // si no existe el div, no hacer polling
-
-  document.getElementById('form-compra').classList.add('hidden');
-  document.getElementById('resultado-compra').classList.add('hidden');
-  validacionDiv.classList.remove('hidden');
-
-  document.getElementById('monto-exacto-display').textContent = montoExacto.toFixed(2);
-  const config = state.config || {};
-  document.getElementById('yape-numero-validacion').textContent = config.contacto_telefono || '993 897 647';
-  document.getElementById('yape-nombre-validacion').textContent = config.brand_name || 'Artesanía Mariposita';
-
-  let intentos = 0;
-  const maxIntentos = 300;
-
-  state.pollingTimer = setInterval(async () => {
-    intentos++;
-    try {
-      const res = await fetch(`/api/public/compra/${ticketId}/estado`);
-      const data = await res.json();
-      const estadoDiv = document.getElementById('estado-validacion');
-
-      if (data.estado === 'validado') {
-        detenerPolling();
-        mostrarExitoCompra(data.ticket);
-      } else if (data.estado === 'expirado') {
-        detenerPolling();
-        if (estadoDiv) {
-          estadoDiv.innerHTML = '<span style="color: #d31145;">⏰ Tiempo agotado. El pago no fue recibido.</span>';
-        }
-        setTimeout(() => {
-          alert('El tiempo para validar el pago ha expirado. Intenta de nuevo.');
-          cerrarModal();
-        }, 2000);
-      } else if (data.estado === 'pendiente') {
-        if (data.segundos_restantes !== undefined) {
-          const mins = Math.floor(data.segundos_restantes / 60);
-          const secs = data.segundos_restantes % 60;
-          document.getElementById('tiempo-restante').textContent =
-            `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        }
-        if (estadoDiv) {
-          estadoDiv.textContent = `🔍 Buscando confirmación... (intento ${intentos})`;
-        }
-      }
-    } catch (error) {
-      console.error('Error en polling:', error);
-    }
-    if (intentos >= maxIntentos) {
-      detenerPolling();
-      alert('Tiempo agotado. Intenta de nuevo.');
-      cerrarModal();
-    }
-  }, 3000);
-}
-
-function mostrarExitoCompra(ticket) {
-  document.getElementById('validacion-pago').classList.add('hidden');
-  const resultDiv = document.getElementById('resultado-compra');
-  resultDiv.classList.remove('hidden');
-
-  const sorteo = state.sorteoSeleccionado || {};
-  const fechaSorteo = sorteo.fecha_sorteo
-    ? new Date(String(sorteo.fecha_sorteo).replace(' ', 'T')).toLocaleDateString('es-PE', {
-        day: '2-digit', month: '2-digit', year: 'numeric'
-      })
-    : 'Por definir';
-
-  let html = `
-    <div class="ticket-resumen-compacto">
-      <div class="ticket-header"><h3>🎟️ Resumen de tus Tickets</h3></div>
-      <div class="ticket-info-row">
-        <div class="ticket-info-item">
-          <span class="ticket-label">👤 NOMBRE COMPLETO</span>
-          <span class="ticket-value">${ticket.cliente_nombre || 'N/A'}</span>
-        </div>
-        <div class="ticket-info-item total-box">
-          <span class="ticket-label">🎟️ TOTAL</span>
-          <span class="ticket-value total-number">1</span>
-        </div>
-      </div>
-      <div class="ticket-numeros-box">
-        <div class="ticket-numeros-label">🎯 ${sorteo.nombre || 'Sorteo'} — ${fechaSorteo}</div>
-        <div class="ticket-numeros">#${formatearCodigo(ticket.codigo_ticket)}</div>
-      </div>
-      <button onclick="cerrarModal(); location.reload();" class="btn-aceptar-ticket">Aceptar</button>
-    </div>
-  `;
-  resultDiv.innerHTML = html;
-}
-
-/* ============================================================
-   COMPRA DE TICKETS (con resumen compacto)
-   ============================================================ */
 async function comprarTickets(e) {
   e.preventDefault();
   const btn = e.target.querySelector('button[type="submit"]');
   btn.textContent = '⏳ Procesando...';
   btn.disabled = true;
-
   const dni = document.getElementById('inp-dni').value;
   if (dni.length !== 8) {
     alert('Por favor, ingrese un DNI válido de 8 dígitos.');
@@ -682,12 +490,10 @@ async function comprarTickets(e) {
     btn.disabled = false;
     return;
   }
-
   const nombres = document.getElementById('inp-nombres').value;
   const apellidos = document.getElementById('inp-apellidos').value;
   const departamento = document.getElementById('inp-departamento').value;
   const sorteoIdVal = document.getElementById('compra-sorteo-id').value;
-
   const formData = new FormData();
   formData.append('sorteo_id', sorteoIdVal);
   formData.append('nombres', nombres);
@@ -696,7 +502,6 @@ async function comprarTickets(e) {
   formData.append('departamento', departamento);
   formData.append('celular', document.getElementById('inp-celular').value);
   formData.append('cantidad_tickets', document.getElementById('inp-cantidad').value);
-
   const comprobanteInput = document.getElementById('inp-comprobante');
   if (comprobanteInput.files.length > 0) {
     const file = comprobanteInput.files[0];
@@ -718,95 +523,55 @@ async function comprarTickets(e) {
     mostrarErrorComprobante('❌ Debes subir un comprobante de pago.');
     btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
   }
-
   try {
     const res = await fetch('/api/public/comprar-aleatorio', { method: 'POST', body: formData });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('form-compra').classList.add('hidden');
+      const resultDiv = document.getElementById('resultado-compra');
+      resultDiv.classList.remove('hidden');
+      const ticketsPorSorteo = {};
+      data.tickets.forEach(t => {
+        const sorteoId = t.sorteo_id;
+        if (!ticketsPorSorteo[sorteoId]) {
+          ticketsPorSorteo[sorteoId] = {
+            nombre: state.sorteoSeleccionado.nombre,
+            fechaSorteo: state.sorteoSeleccionado.fecha_sorteo,
+            tickets: []
+          };
+        }
+        ticketsPorSorteo[sorteoId].tickets.push(t.codigo_ticket);
+      });
+      let html = `<h3 style="color:var(--tinka-green); margin-bottom: 15px; text-align: center;">🎟️ Resumen de tus Tickets</h3>`;
+      html += `<div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">`;
+      html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">`;
+      html += `<div><strong>👤 Cliente:</strong> ${nombres} ${apellidos}</div>`;
+      html += `<div><strong>🎟️ Total:</strong> <span style="color:var(--tinka-red); font-size:1.2rem; font-weight:bold;">${data.tickets.length}</span></div>`;
+      html += `</div></div>`;
+      html += `<div style="border:1px solid #ddd; border-radius:8px; overflow:hidden;">`;
+      html += `<table style="width:100%; border-collapse:collapse;">`;
+      html += `<thead><tr style="background:var(--tinka-yellow);">`;
+      html += `<th style="padding:12px; text-align:left; font-weight:bold;">SORTEO</th>`;
+      html += `<th style="padding:12px; text-align:left; font-weight:bold;">FECHA SORTEO</th>`;
+      html += `<th style="padding:12px; text-align:left; font-weight:bold;">TUS NÚMEROS</th>`;
+      html += `</tr></thead><tbody>`;
+      Object.entries(ticketsPorSorteo).forEach(([sorteoId, info]) => {
+        const fechaSorteo = info.fechaSorteo ? new Date(info.fechaSorteo).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Lima' }) : 'Por definir';
+        const codigosFormateados = info.tickets.map(c => `#${formatearCodigo(c)}`).join(', ');
+        html += `<tr style="border-bottom:1px solid #eee;">`;
+        html += `<td style="padding:12px; font-weight:bold;">${info.nombre}</td>`;
+        html += `<td style="padding:12px;">${fechaSorteo}</td>`;
+        html += `<td style="padding:12px; font-family:'Courier New', monospace; font-weight:bold; color:var(--tinka-red);">${codigosFormateados}</td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table></div>`;
+      html += `<button onclick="cerrarModal(); location.reload();" style="margin-top:20px; padding:12px; width:100%; background:var(--tinka-green); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:1rem;">Cerrar</button>`;
+      resultDiv.innerHTML = html;
+    } else {
+      const err = await res.json();
       mostrarErrorComprobante('❌ ' + (err.error || 'Error en la compra.'));
-      return;
     }
-
-    const data = await res.json();
-    if (!data.tickets || data.tickets.length === 0) {
-      mostrarErrorComprobante('❌ No se generaron tickets. Intenta de nuevo.');
-      return;
-    }
-
-    document.getElementById('form-compra').classList.add('hidden');
-    const resultDiv = document.getElementById('resultado-compra');
-    resultDiv.classList.remove('hidden');
-
-    // Agrupar tickets por sorteo
-    const sorteoActual = state.sorteoSeleccionado || {};
-    const ticketsPorSorteo = {};
-    data.tickets.forEach(t => {
-      const sid = t.sorteo_id ?? sorteoActual.id ?? 'default';
-      if (!ticketsPorSorteo[sid]) {
-        ticketsPorSorteo[sid] = {
-          nombre: t.nombre_sorteo || sorteoActual.nombre || 'Sorteo',
-          fechaSorteo: t.fecha_sorteo || sorteoActual.fecha_sorteo || null,
-          tickets: []
-        };
-      }
-      ticketsPorSorteo[sid].tickets.push(t.codigo_ticket);
-    });
-
-    // Formatear fecha del sorteo (seguro para iOS/Safari)
-    const formatearFechaSorteo = (fechaStr) => {
-      if (!fechaStr) return 'Por definir';
-      const normalizada = String(fechaStr).replace(' ', 'T');
-      const d = new Date(normalizada);
-      if (isNaN(d.getTime())) return 'Por definir';
-      return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
-
-    let html = `<div class="ticket-resumen-compacto">`;
-    html += `<div class="ticket-header"><h3>🎟️ Resumen de tus Tickets</h3></div>`;
-    html += `<div class="ticket-info-row">`;
-    html += `<div class="ticket-info-item">`;
-    html += `<span class="ticket-label">👤 NOMBRE COMPLETO</span>`;
-    html += `<span class="ticket-value">${nombres} ${apellidos}</span>`;
-    html += `</div>`;
-    html += `<div class="ticket-info-item total-box">`;
-    html += `<span class="ticket-label">🎟️ TOTAL COMPRADOS</span>`;
-    html += `<span class="ticket-value total-number">${data.tickets.length}</span>`;
-    html += `</div>`;
-    html += `</div>`;
-
-    Object.values(ticketsPorSorteo).forEach(info => {
-      const codigos = info.tickets.map(c => `#${formatearCodigo(c)}`).join('  ·  ');
-      html += `<div class="ticket-numeros-box">`;
-      html += `<div class="ticket-numeros-label">🎯 ${info.nombre} — ${formatearFechaSorteo(info.fechaSorteo)}</div>`;
-      html += `<div class="ticket-numeros">${codigos}</div>`;
-      html += `</div>`;
-    });
-
-    html += `<div class="ticket-detalles">`;
-    html += `<div class="ticket-detalle-item">`;
-    html += `<span class="detalle-label">Total Pagado:</span>`;
-    html += `<span class="detalle-value total-pagado">S/ ${Number(data.total_pagado || 0).toFixed(2)}</span>`;
-    html += `</div>`;
-    if (data.centavos_agregados !== undefined) {
-      html += `<div class="ticket-detalle-item">`;
-      html += `<span class="detalle-label">Centavos de validación:</span>`;
-      html += `<span class="detalle-value">+ S/ ${Number(data.centavos_agregados).toFixed(2)}</span>`;
-      html += `</div>`;
-    }
-    html += `<div class="ticket-detalle-item">`;
-    html += `<span class="detalle-label">DNI:</span>`;
-    html += `<span class="detalle-value">${dni}</span>`;
-    html += `</div>`;
-    html += `</div>`;
-
-    html += `<button onclick="cerrarModal(); location.reload();" class="btn-aceptar-ticket">Aceptar</button>`;
-    html += `</div>`;
-
-    resultDiv.innerHTML = html;
-
   } catch (error) {
-    console.error('Error de conexión:', error);
     alert('Error de conexión con el servidor.');
   } finally {
     btn.textContent = 'Confirmar Compra';
@@ -814,7 +579,4 @@ async function comprarTickets(e) {
   }
 }
 
-/* ============================================================
-   INICIAR APLICACIÓN
-   ============================================================ */
 cargarDatos();
