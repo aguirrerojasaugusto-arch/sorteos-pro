@@ -7,7 +7,6 @@ export function abrirModal(idSorteo) {
   console.log('🔍 abrirModal llamado con id:', idSorteo, 'tipo:', typeof idSorteo);
   console.log('📦 Sorteos en state:', state.sorteos);
   
-  // ✅ FIX: comparación flexible string/number
   const sorteo = state.sorteos.find(s => String(s.id) === String(idSorteo));
   console.log('🎯 Sorteo encontrado:', sorteo);
   
@@ -40,8 +39,20 @@ export function abrirModal(idSorteo) {
   document.getElementById('pago-nombre').textContent = config.brand_name || 'Artesanía Mariposita';
 
   console.log('👁️ Mostrando modal...');
-  document.getElementById('modal-compra').classList.remove('hidden');
+  
+  // ✅ FIX: Forzar estilos inline para asegurar visibilidad
+  const modal = document.getElementById('modal-compra');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+  modal.style.position = 'fixed';
+  modal.style.inset = '0';
+  modal.style.background = 'rgba(0,0,0,0.6)';
+  modal.style.zIndex = '9999';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  
   document.getElementById('form-compra').classList.remove('hidden');
+  document.getElementById('form-compra').style.display = 'block';
   document.getElementById('resultado-compra').classList.add('hidden');
   document.getElementById('validacion-pago').classList.add('hidden');
 
@@ -59,12 +70,17 @@ export function abrirModal(idSorteo) {
   ocultarErrorComprobante();
   setCamposClienteEditable(true);
   actualizarTotal();
-  document.getElementById('inp-dni').focus();
+  
+  setTimeout(() => {
+    document.getElementById('inp-dni').focus();
+  }, 100);
 }
 
 export function cerrarModal() {
   detenerPolling();
-  document.getElementById('modal-compra').classList.add('hidden');
+  const modal = document.getElementById('modal-compra');
+  modal.classList.add('hidden');
+  modal.style.display = '';
 }
 
 export function cambiarCantidad(delta) {
