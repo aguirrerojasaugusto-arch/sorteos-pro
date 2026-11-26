@@ -15,7 +15,7 @@
 body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 100vh; overflow-x: hidden; }
 
 /* --- LOGIN SCREEN --- */
-#login-screen {
+.login-screen {
   position: fixed; inset: 0; background: var(--admin-bg);
   display: flex; align-items: center; justify-content: center; z-index: 9999;
   padding: 1rem;
@@ -39,9 +39,9 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
 .error-msg { color: var(--admin-danger); font-size: 0.9rem; margin-top: 1rem; display: none; }
 
 /* --- ADMIN PANEL LAYOUT --- */
-#admin-panel { display: none; min-height: 100vh; }
+.admin-panel { display: none; min-height: 100vh; }
 
-/* ✅ Overlay para cerrar sidebar en móvil/tablet */
+/* Overlay para cerrar sidebar en móvil/tablet */
 .sidebar-overlay {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   z-index: 99; opacity: 0; transition: opacity 0.3s;
@@ -59,7 +59,7 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
   display: flex; flex-direction: column; align-items: center; gap: 0.8rem;
   text-align: center; position: relative;
 }
-.sidebar-logo-img {
+.sidebar-header img {
   width: 60px; height: 60px; object-fit: contain; border-radius: 50%;
   background: white; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
@@ -67,7 +67,6 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
   font-size: 1.2rem; color: var(--admin-secondary); margin: 0;
   word-break: break-word; line-height: 1.3;
 }
-/* ✅ Botón cerrar dentro del sidebar (solo móvil/tablet) */
 .sidebar-close-btn {
   display: none; position: absolute; top: 1rem; right: 1rem;
   width: 36px; height: 36px; border-radius: 50%; border: none;
@@ -80,9 +79,11 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
 .menu-item {
   padding: 0.9rem 1.5rem; cursor: pointer; transition: all 0.2s;
   display: flex; align-items: center; gap: 0.8rem; font-size: 0.95rem;
+  color: white; text-decoration: none;
 }
 .menu-item:hover { background: rgba(255,255,255,0.05); color: var(--admin-secondary); }
 .menu-item.active { background: var(--admin-primary); color: white; border-right: 4px solid var(--admin-secondary); }
+
 .sidebar-footer { padding: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
 .btn-logout {
   width: 100%; padding: 0.7rem; background: rgba(255,255,255,0.1); color: white;
@@ -96,7 +97,7 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
 
 .main-content {
   margin-left: var(--sidebar-width); flex: 1; display: flex; flex-direction: column;
-  min-width: 0; /* ✅ Evita desborde en flex */
+  min-width: 0;
 }
 .topbar {
   background: var(--admin-card); padding: 1rem 2rem; border-bottom: 1px solid var(--admin-border);
@@ -104,7 +105,6 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
   min-height: var(--topbar-height);
 }
 .topbar h1 { font-size: 1.5rem; color: var(--admin-text); margin: 0; }
-/* ✅ Botón hamburguesa (oculto en PC) */
 .btn-hamburger {
   display: none; width: 40px; height: 40px; border-radius: 8px;
   border: 1px solid var(--admin-border); background: white; font-size: 1.3rem;
@@ -128,7 +128,6 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
   font-size: 1.1rem; color: var(--admin-primary); margin-bottom: 1.2rem;
   padding-bottom: 0.8rem; border-bottom: 2px solid var(--admin-bg);
 }
-
 .config-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -154,7 +153,6 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
 .form-group input[readonly] { background: #f8f9fa; color: #666; cursor: not-allowed; }
 .form-group input[type="file"] { padding: 0.5rem; font-size: 0.85rem; }
 
-/* Upload Slots */
 .upload-slot {
   border: 2px dashed var(--admin-border); border-radius: 10px; padding: 1rem;
   text-align: center; transition: border-color 0.2s; background: #fafafa; min-width: 0;
@@ -170,10 +168,6 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
 }
 .file-input-wrapper input[type="file"] {
   font-size: 0.8rem; color: var(--admin-text-light); width: 100%;
-}
-.input-fecha-promo {
-  margin-top: 0.5rem; width: 100%; padding: 0.5rem; border: 1px solid var(--admin-border);
-  border-radius: 6px; font-size: 0.85rem; text-align: center;
 }
 .upload-hint { font-size: 0.8rem; color: #888; margin-top: 0.8rem; text-align: center; }
 
@@ -202,10 +196,9 @@ body { background-color: var(--admin-bg); color: var(--admin-text); min-height: 
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
 }
-.grid-carrusel { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.grid-carrusel { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
 
 /* --- TABLES --- */
-/* ✅ Wrapper para scroll horizontal en móvil */
 .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; min-width: 600px; }
 th, td { padding: 0.8rem 1rem; text-align: left; border-bottom: 1px solid var(--admin-border); white-space: nowrap; }
@@ -230,7 +223,6 @@ tr:hover { background: #fafafa; }
   border-radius: 8px; font-size: 0.95rem;
 }
 .custom-search:focus { outline: none; border-color: var(--admin-primary); }
-
 .pagination-container {
   display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; gap: 0.5rem;
 }
@@ -260,6 +252,9 @@ tr:hover { background: #fafafa; }
 .modal-actions .btn-save, .modal-actions .btn-cancel { flex: 1; margin-top: 0; }
 
 /* --- HOVER PREVIEW --- */
+.hover-preview {
+  position: fixed; z-index: 2000; pointer-events: none;
+}
 .hover-preview-img {
   max-width: 300px; max-height: 400px; border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 2px solid white;
@@ -274,14 +269,24 @@ tr:hover { background: #fafafa; }
 .status-badge.encontrado { background: #d4edda; color: #155724; }
 .status-badge.nuevo { background: #cce5ff; color: #004085; }
 
+/* --- BADGE CONTADOR (Revisión Manual) --- */
+.badge-contador {
+  background: var(--admin-danger);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: auto;
+  min-width: 20px;
+  text-align: center;
+}
+
 /* ============================================================
-   ✅ RESPONSIVE: TABLET (768px – 1023px)
-   ============================================================ */
+   RESPONSIVE: TABLET (768px – 1023px)
+============================================================ */
 @media (max-width: 1023px) {
-  .sidebar {
-    transform: translateX(-100%); /* Oculto por defecto */
-    width: 280px;
-  }
+  .sidebar { transform: translateX(-100%); width: 280px; }
   .sidebar.open { transform: translateX(0); }
   .sidebar-close-btn { display: flex; }
   .btn-hamburger { display: flex; }
@@ -295,8 +300,8 @@ tr:hover { background: #fafafa; }
 }
 
 /* ============================================================
-   ✅ RESPONSIVE: CELULAR (<768px)
-   ============================================================ */
+   RESPONSIVE: CELULAR (<768px)
+============================================================ */
 @media (max-width: 767px) {
   .login-box { padding: 1.5rem; }
   .login-box h2 { font-size: 1.3rem; margin-bottom: 1rem; }
@@ -306,7 +311,7 @@ tr:hover { background: #fafafa; }
   .card { padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
   .card h2 { font-size: 1rem; margin-bottom: 1rem; padding-bottom: 0.6rem; }
   .form-group { margin-bottom: 1rem; }
-  .form-group input, .form-group select { padding: 0.7rem; font-size: 16px; /* ✅ Evita zoom iOS */ }
+  .form-group input, .form-group select { padding: 0.7rem; font-size: 16px; }
   .form-row-inline { flex-direction: column; gap: 0; }
   .grid-bolas, .grid-carrusel { grid-template-columns: repeat(2, 1fr); gap: 0.7rem; }
   .upload-slot { padding: 0.6rem; }
@@ -327,9 +332,6 @@ tr:hover { background: #fafafa; }
   .hover-preview-img { max-width: 220px; max-height: 300px; }
 }
 
-/* ============================================================
-   ✅ RESPONSIVE: CELULAR MUY PEQUEÑO (<400px)
-   ============================================================ */
 @media (max-width: 400px) {
   .grid-bolas, .grid-carrusel { grid-template-columns: 1fr; }
   .sidebar { width: 100%; }
@@ -338,24 +340,24 @@ tr:hover { background: #fafafa; }
 }
 
 /* ============================================================
-   ✅ PRINT: ocultar sidebar y topbar al imprimir
-   ============================================================ */
+   PRINT
+============================================================ */
 @media print {
   .sidebar, .topbar, .btn-hamburger, .sidebar-overlay, .sidebar-close-btn { display: none !important; }
   .main-content { margin-left: 0 !important; }
   .content-area { padding: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #ddd !important; }
 }
+
 /* ============================================================
-   ✅ ESTILOS DEL MODAL DE COMPROBANTE DE VENTA
-   ============================================================ */
+   ESTILOS DEL MODAL DE COMPROBANTE DE VENTA
+============================================================ */
 .modal-comprobante {
   max-width: 480px;
   padding: 0;
   overflow: hidden;
   border-radius: 16px;
 }
-
 .modal-header-comprobante {
   background: var(--admin-primary);
   color: white;
@@ -364,7 +366,6 @@ tr:hover { background: #fafafa; }
   justify-content: space-between;
   align-items: center;
 }
-
 .modal-header-comprobante h2 {
   margin: 0;
   font-size: 1.2rem;
@@ -372,7 +373,6 @@ tr:hover { background: #fafafa; }
   border: none;
   padding: 0;
 }
-
 .btn-close-modal {
   background: rgba(255,255,255,0.2);
   border: none;
@@ -387,15 +387,8 @@ tr:hover { background: #fafafa; }
   justify-content: center;
   transition: background 0.2s;
 }
-
-.btn-close-modal:hover {
-  background: rgba(255,255,255,0.3);
-}
-
-.comprobante-body {
-  padding: 1.5rem;
-}
-
+.btn-close-modal:hover { background: rgba(255,255,255,0.3); }
+.comprobante-body { padding: 1.5rem; }
 .comprobante-info {
   background: #f8f9fa;
   border-radius: 10px;
@@ -403,25 +396,13 @@ tr:hover { background: #fafafa; }
   margin-bottom: 1.2rem;
   border: 1px solid var(--admin-border);
 }
-
-.comprobante-info p {
-  margin: 0.4rem 0;
-  font-size: 0.95rem;
-  color: var(--admin-text);
-}
-
-.comprobante-info strong {
-  color: var(--admin-text-light);
-  min-width: 110px;
-  display: inline-block;
-}
-
+.comprobante-info p { margin: 0.4rem 0; font-size: 0.95rem; color: var(--admin-text); }
+.comprobante-info strong { color: var(--admin-text-light); min-width: 110px; display: inline-block; }
 .comp-total-destacado {
   color: var(--admin-primary) !important;
   font-size: 1.1rem !important;
   font-weight: bold !important;
 }
-
 .comprobante-tickets h3 {
   font-size: 1rem;
   color: var(--admin-text);
@@ -430,7 +411,6 @@ tr:hover { background: #fafafa; }
   padding-bottom: 0.4rem;
   display: inline-block;
 }
-
 .lista-tickets {
   list-style: none;
   padding: 0;
@@ -439,7 +419,6 @@ tr:hover { background: #fafafa; }
   flex-wrap: wrap;
   gap: 0.6rem;
 }
-
 .lista-tickets li {
   background: var(--admin-bg);
   border: 1px solid var(--admin-border);
@@ -451,7 +430,6 @@ tr:hover { background: #fafafa; }
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   letter-spacing: 1px;
 }
-
 .comprobante-aviso {
   margin-top: 1.2rem;
   padding: 0.8rem;
@@ -462,7 +440,6 @@ tr:hover { background: #fafafa; }
   text-align: center;
   border: 1px solid #ffeeba;
 }
-
 .modal-footer-comprobante {
   padding: 1rem 1.5rem;
   background: #f8f9fa;
@@ -470,7 +447,6 @@ tr:hover { background: #fafafa; }
   display: flex;
   gap: 0.8rem;
 }
-
 .btn-print-modal {
   flex: 1;
   padding: 0.8rem;
@@ -483,11 +459,7 @@ tr:hover { background: #fafafa; }
   font-size: 0.95rem;
   transition: background 0.2s;
 }
-
-.btn-print-modal:hover {
-  background: #005c38;
-}
-
+.btn-print-modal:hover { background: #005c38; }
 .btn-cancel-modal {
   flex: 1;
   padding: 0.8rem;
@@ -500,26 +472,11 @@ tr:hover { background: #fafafa; }
   font-size: 0.95rem;
   transition: background 0.2s;
 }
+.btn-cancel-modal:hover { background: #d0d0d0; }
 
-.btn-cancel-modal:hover {
-  background: #d0d0d0;
-}
-
-/* Ajuste responsive para el modal de comprobante en celular */
 @media (max-width: 767px) {
-  .modal-comprobante {
-    max-width: 95vw;
-    border-radius: 16px 16px 0 0;
-  }
-  .comprobante-info strong {
-    display: block;
-    font-size: 0.8rem;
-    margin-bottom: 0.2rem;
-  }
-  .comprobante-info p {
-    margin-bottom: 0.8rem;
-  }
-  .modal-footer-comprobante {
-    flex-direction: column;
-  }
+  .modal-comprobante { max-width: 95vw; border-radius: 16px 16px 0 0; }
+  .comprobante-info strong { display: block; font-size: 0.8rem; margin-bottom: 0.2rem; }
+  .comprobante-info p { margin-bottom: 0.8rem; }
+  .modal-footer-comprobante { flex-direction: column; }
 }
