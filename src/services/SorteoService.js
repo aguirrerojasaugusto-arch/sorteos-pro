@@ -100,7 +100,6 @@ export class SorteoService {
     }
 
     validator.validarBoliyapa(data.boliyapa_numero != null ? Number(data.boliyapa_numero) : null);
-
     if (data.cliente_dni && String(data.cliente_dni).trim() !== '') {
       validator.validarTitular(data.cliente_nombre, data.cliente_dni);
     }
@@ -114,15 +113,26 @@ export class SorteoService {
       throw new Error('No se pudo calcular el monto a pagar');
     }
 
-    // Hash del comprobante (lectura, fuera de la tx)
+    // ==========================================
+    // ✅ FIX CRÍTICO: Hash del comprobante (Compatible Local + Cloudinary)
+    // ==========================================
     let comprobanteHash = null;
     if (data.comprobante_file && data.comprobante_file.path) {
-      try {
-        const buf = await fs.readFile(data.comprobante_file.path);
-        comprobanteHash = crypto.createHash('sha256').update(buf).digest('hex');
-      } catch (err) {
-        console.error('Error al leer comprobante:', err);
-        throw new Error('No se pudo leer el comprobante adjunto');
+      const ruta = data.comprobante_file.path;
+      
+      if (/^https?:\/\//i.test(ruta)) {
+        // ✅ FLUJO CLOUDINARY (Producción): la URL ya es única por archivo.
+        // No hay archivo en disco, así que usamos un hash de la URL como identificador único.
+        comprobanteHash = crypto.createHash('sha256').update(String(ruta)).digest('hex');
+      } else {
+        // ✅ FLUJO LOCAL (Desarrollo/SQLite): leer el archivo real para hash por contenido.
+        try {
+          const buf = await fs.readFile(ruta);
+          comprobanteHash = crypto.createHash('sha256').update(buf).digest('hex');
+        } catch (err) {
+          console.error('Error al leer comprobante:', err);
+          throw new Error('No se pudo leer el comprobante adjunto');
+        }
       }
     }
 
@@ -187,7 +197,9 @@ export class SorteoService {
       return { tickets: ticketsCreados, total_pagado };
     } catch (e) {
       await tx.rollback().catch(err => console.error('Error en rollback:', err));
-      if (comprobanteHash && data.comprobante_file?.path) {
+      
+      // ✅ FIX: Solo intentar borrar si es un archivo local, NO una URL de Cloudinary
+      if (comprobanteHash && data.comprobante_file?.path && !/^https?:\/\//i.test(data.comprobante_file.path)) {
         await fs.unlink(data.comprobante_file.path).catch(() => {});
       }
       throw e;
@@ -267,7 +279,6 @@ export class SorteoService {
       }
 
       await tx.commit();
-      
       return { 
         tickets: ticketsCreados, 
         total_base: totalBase,
@@ -283,7 +294,6 @@ export class SorteoService {
   // ✅ NUEVO: Validar pago Yape desde webhook
   async validarPagoYape(montoRecibido, smsBody, codigoOperacion) {
     const ticket = await this.appRepo.getTicketPendienteByMontoYape(montoRecibido);
-    
     if (!ticket) {
       // Registrar log de webhook fallido
       await this.appRepo.logYapeWebhook(montoRecibido, smsBody, null, 'no_encontrado');
