@@ -55,7 +55,7 @@
       </header>
 
       <div class="content-area">
-        <!-- VISTA: CONFIGURACIÓN -->
+        <!-- VISTA: CONFIGURACIÓN (sin Carrusel/Banners/Promos) -->
         <section id="view-config" class="section-view active">
           <div class="card">
             <h2>🖼️ Logo de la Marca</h2>
@@ -168,31 +168,36 @@
               </div>
             </div>
           </div>
-
-          <div class="card full-width-card">
-            <h2>🎠 Imágenes del Carrusel Principal</h2>
-            <div class="grid-carrusel" id="carrusel-container"></div>
-            <button class="btn-save btn-full" onclick="guardarCarrusel()">💾 Guardar Carrusel</button>
-          </div>
-
-          <div class="card full-width-card">
-            <h2>🖼️ Banner Izquierdo Rotativo</h2>
-            <div class="grid-carrusel" id="banners-container"></div>
-            <button class="btn-save btn-full" onclick="guardarBanners()">💾 Guardar Banners</button>
-          </div>
-
-          <div class="card full-width-card">
-            <h2>📢 Promociones Laterales Derechas</h2>
-            <div class="grid-carrusel" id="promos-container"></div>
-            <button class="btn-save btn-full" onclick="guardarPromos()">💾 Guardar Promos</button>
-          </div>
         </section>
 
-        <!-- VISTA: BANNERS Y PROMOS -->
+        <!-- ✅ VISTA: BANNERS Y PROMOS (con Carrusel, Banners y Promos movidos aquí) -->
         <section id="view-banners" class="section-view">
           <div class="card">
-            <h2>🖼️ Banners y Promos</h2>
-            <p>Usa las secciones de Carrusel, Banners y Promos en Configuración.</p>
+            <h2>🎠 Imágenes del Carrusel Principal</h2>
+            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Sube las imágenes que aparecerán en el carrusel principal de la página de inicio.</p>
+            <div class="grid-carrusel" id="carrusel-container"></div>
+            <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
+              <button class="btn-save" onclick="guardarCarrusel()">💾 Guardar Carrusel</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>🖼️ Banner Izquierdo Rotativo</h2>
+            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Sube los banners que rotarán en el lateral izquierdo.</p>
+            <div class="grid-carrusel" id="banners-container"></div>
+            <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
+              <button class="btn-save" onclick="guardarBanners()">💾 Guardar Banners</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>📢 Promociones Laterales Derechas</h2>
+            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Agrega todas las promociones que necesites. Puedes añadir cuantas quieras.</p>
+            <div class="grid-carrusel" id="promos-container"></div>
+            <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap; align-items:center;">
+              <button class="btn-save" onclick="guardarPromos()">💾 Guardar Promos</button>
+              <button class="btn-add-promo" onclick="agregarPromo()">➕ Agregar Promo</button>
+            </div>
           </div>
         </section>
 
@@ -312,7 +317,7 @@
           </div>
         </section>
 
-        <!-- ✅ VISTA NUEVA: REVISIÓN MANUAL (usa las MISMAS clases que el resto) -->
+        <!-- VISTA: REVISIÓN MANUAL -->
         <section id="view-revision-manual" class="section-view">
           <div class="card">
             <h2>📋 Pagos en Revisión Manual</h2>
@@ -438,7 +443,7 @@
     </div>
   </div>
 
-  <!-- ✅ MODAL NUEVO: Ver captura en grande (usa las mismas clases que los otros modales) -->
+  <!-- MODAL: Ver captura en grande -->
   <div id="modal-captura" class="modal-overlay hidden">
     <div class="modal-content">
       <h2>📸 Captura del Pago</h2>

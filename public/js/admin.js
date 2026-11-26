@@ -49,7 +49,12 @@ function cambiarVista(viewId, element) {
   };
   document.getElementById('page-title').textContent = titles[viewId] || viewId;
 
-  // ✅ Cargar datos específicos de la vista
+  // ✅ Si cambiamos a banners, reinicializar media por si acaso
+  if (viewId === 'banners' && typeof initMedia === 'function') {
+    setTimeout(() => initMedia(), 100);
+  }
+
+  // ✅ Si cambiamos a revisión manual, cargar datos
   if (viewId === 'revision-manual') {
     cargarRevisionManual();
   }
@@ -176,7 +181,7 @@ async function cargarDatosGlobales() {
   cargarContadorRevisionManual();
 }
 
-// ✅ NUEVO: Cargar contador de pagos en revisión manual (para badge)
+// ✅ NUEVO: Cargar contador de pagos en revisión manual
 async function cargarContadorRevisionManual() {
   try {
     const res = await fetch('/api/admin/pagos/revision-manual/contador', {
@@ -227,7 +232,7 @@ async function cargarRevisionManual() {
     tbody.innerHTML = pagos.map(p => {
       const fecha = p.creado_en ? new Date(p.creado_en).toLocaleString() : '-';
       const capturaHtml = p.captura_url
-        ? `<button onclick="verCaptura('${p.token}', '${p.cliente_nombre}', '${p.cliente_dni}', ${p.monto_unico}, '${p.codigo_cliente_3d || ''}', '${p.captura_url}')" class="btn-ver-captura">📸 Ver</button>`
+        ? `<button onclick="verCaptura('${p.token}', '${p.cliente_nombre}', '${p.cliente_dni}', ${p.monto_unico}, '${p.codigo_cliente_3d || ''}', '${p.captura_url}')" class="btn-edit">📸 Ver</button>`
         : '-';
       const codigo3d = p.codigo_cliente_3d || '-';
       const sorteoNombre = getSorteoNombre(p.sorteo_id);
@@ -243,13 +248,12 @@ async function cargarRevisionManual() {
         <td>${capturaHtml}</td>
         <td>${fecha}</td>
         <td>
-          <button onclick="aprobarPago('${p.token}')" class="btn-aprobar">✅</button>
-          <button onclick="rechazarPago('${p.token}')" class="btn-rechazar">❌</button>
+          <button onclick="aprobarPago('${p.token}')" class="btn-edit" style="background:#007B4B; color:white;">✅</button>
+          <button onclick="rechazarPago('${p.token}')" class="btn-edit" style="background:#D31145; color:white;">❌</button>
         </td>
       </tr>`;
     }).join('');
 
-    // Actualizar contador
     cargarContadorRevisionManual();
   } catch (e) {
     console.error('Error cargando revisión manual:', e);
@@ -257,13 +261,11 @@ async function cargarRevisionManual() {
   }
 }
 
-// ✅ Helper: obtener nombre del sorteo por ID
 function getSorteoNombre(sorteoId) {
   const sorteo = globalData.sorteos?.find(s => s.id === sorteoId);
   return sorteo ? sorteo.nombre : `Sorteo #${sorteoId}`;
 }
 
-// ✅ NUEVO: Ver captura en modal
 function verCaptura(token, cliente, dni, monto, codigo3d, capturaUrl) {
   document.getElementById('captura-img').src = capturaUrl;
   document.getElementById('captura-cliente').textContent = cliente || '-';
@@ -271,7 +273,6 @@ function verCaptura(token, cliente, dni, monto, codigo3d, capturaUrl) {
   document.getElementById('captura-monto').textContent = `S/ ${Number(monto).toFixed(2)}`;
   document.getElementById('captura-codigo').textContent = codigo3d || '-';
 
-  // Configurar botones
   document.getElementById('btn-aprobar-captura').onclick = () => {
     aprobarPago(token);
     cerrarModalCaptura();
@@ -288,7 +289,6 @@ function cerrarModalCaptura() {
   document.getElementById('modal-captura').classList.add('hidden');
 }
 
-// ✅ NUEVO: Aprobar pago
 async function aprobarPago(token) {
   if (!confirm('¿Confirmar aprobación de este pago? Se generarán los tickets.')) return;
 
@@ -305,7 +305,7 @@ async function aprobarPago(token) {
     if (res.ok) {
       alert('✅ Pago aprobado correctamente. Tickets generados.');
       cargarRevisionManual();
-      if (typeof cargarDatosGlobales === 'function') await cargarDatosGlobales();
+      await cargarDatosGlobales();
     } else {
       const err = await res.json().catch(() => ({}));
       alert('❌ Error: ' + (err.error || 'No se pudo aprobar'));
@@ -316,10 +316,9 @@ async function aprobarPago(token) {
   }
 }
 
-// ✅ NUEVO: Rechazar pago
 async function rechazarPago(token) {
   const motivo = prompt('Motivo del rechazo (opcional):');
-  if (motivo === null) return; // Cancelado
+  if (motivo === null) return;
 
   try {
     const res = await fetch(`/api/admin/pagos/${token}/rechazar`, {
@@ -340,6 +339,104 @@ async function rechazarPago(token) {
     }
   } catch (e) {
     console.error('Error rechazando pago:', e);
+    alert('Error de conexión');
+  }
+}
+
+// ✅ NUEVO: Agregar promo dinámicamente
+function agregarPromo() {
+  const container = document.getElementById('promos-container');
+  if (!container) return;
+
+  const index = container.children.length;
+  const slot = document.createElement('div');
+  slot.className = 'upload-slot';
+  slot.dataset.promoIndex = index;
+  slot.innerHTML = `
+    <div class="file-input-wrapper">
+      <label>Promo ${index + 1}</label>
+      <img class="preview-img-dinamica" data-preview="promo-${index}" />
+      <input type="file" accept="image/*" onchange="subirImagenPromo(${index}, this)" />
+      <input type="text" class="input-fecha-promo" placeholder="Fecha (ej: 2026-12-31)" data-fecha="promo-${index}" />
+      <button class="btn-eliminar-promo" onclick="eliminarPromo(this)">🗑️ Eliminar</button>
+    </div>
+  `;
+  container.appendChild(slot);
+}
+
+// ✅ NUEVO: Eliminar promo
+function eliminarPromo(btn) {
+  if (!confirm('¿Eliminar esta promo?')) return;
+  const slot = btn.closest('.upload-slot');
+  if (slot) slot.remove();
+}
+
+// ✅ NUEVO: Subir imagen de promo
+async function subirImagenPromo(index, fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('imagen', file);
+
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'x-admin-key': adminKey },
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return alert('❌ Error al subir imagen:\n' + (err.error || 'HTTP ' + res.status));
+    }
+    const data = await res.json();
+    const preview = document.querySelector(`[data-preview="promo-${index}"]`);
+    if (preview) {
+      preview.src = data.url;
+      preview.classList.add('d-block');
+      preview.dataset.url = data.url;
+    }
+  } catch (e) {
+    alert('Error de conexión al subir imagen');
+  }
+}
+
+// ✅ NUEVO: Guardar promos (recoge todas las promos del contenedor)
+async function guardarPromos() {
+  const container = document.getElementById('promos-container');
+  if (!container) return;
+
+  const slots = container.querySelectorAll('.upload-slot');
+  const promos = [];
+
+  slots.forEach((slot, index) => {
+    const preview = slot.querySelector(`[data-preview="promo-${index}"]`);
+    const fechaInput = slot.querySelector(`[data-fecha="promo-${index}"]`);
+    const url = preview?.dataset.url || preview?.src || '';
+    const fecha = fechaInput?.value || '';
+
+    if (url) {
+      promos.push({ url_imagen: url, fecha });
+    }
+  });
+
+  if (promos.length === 0) {
+    return alert('⚠️ No hay promos con imagen para guardar.');
+  }
+
+  try {
+    const res = await fetch('/api/admin/promos-laterales', {
+      method: 'POST',
+      headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promos })
+    });
+    if (res.ok) {
+      alert(`✅ ${promos.length} promo(s) guardada(s) correctamente.`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert('❌ Error:\n' + (err.error || 'HTTP ' + res.status));
+    }
+  } catch (e) {
     alert('Error de conexión');
   }
 }
