@@ -364,3 +364,23 @@ body { background-color: var(--bg-light); color: var(--tinka-text); min-height: 
   .ticket-info-row { flex-direction: column; gap: 0.7rem; }
   .ticket-numeros { font-size: 1.2rem; }
 }
+/* ============================================================
+✅ ESTILOS PARA EL PREVIEW DEL COMPROBANTE DE PAGO
+============================================================ */
+#preview-comprobante {
+  display: none;
+  max-width: 100%;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 0.8rem auto;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+  background: #f8f9fa;
+  padding: 0.5rem;
+}
+
+#preview-comprobante[src=""] {
+  display: none !important;
+}
