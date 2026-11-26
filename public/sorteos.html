@@ -149,7 +149,7 @@
           <small style="color:#666; display:block; margin-top:0.3rem;">
             📸 Sube la captura de pantalla de tu pago (Yape/Plin, vertical). Máx. 5MB. No se aceptan duplicados.
           </small>
-          <img id="preview-comprobante" style="display:none; max-width:100%; margin-top:0.5rem; border-radius:8px;">
+          <img id="preview-comprobante" style="display:none; max-width:100%; max-height:200px; object-fit:contain; margin:0.8rem auto; border-radius:8px; border:2px solid #e0e0e0; background:#f8f9fa; padding:0.5rem;">
           <div id="error-comprobante" style="display:none; color:#d31145; font-size:0.85rem; margin-top:0.3rem;"></div>
         </div>
 
@@ -166,6 +166,18 @@
         <p>Transfiere exactamente <strong id="val-total">S/ 0.00</strong><br>
            al Yape <strong>993 897 647</strong><br>
            (Artesanía Mariposita)</p>
+
+        <!-- ✅ NUEVO: Mensaje de advertencia sobre los centavos -->
+        <div style="background:#fff9e6; border:1px solid #f0c040; border-radius:8px; padding:1rem; margin:1rem auto; max-width:420px; text-align:left;">
+          <strong style="color:#856404;">⚠️ IMPORTANTE:</strong>
+          <ul style="margin:0.5rem 0 0 1.2rem; padding:0; color:#665; font-size:0.9rem; line-height:1.5;">
+            <li>Yapea <strong>EXACTAMENTE</strong> el monto que aparece arriba (con centavos)</li>
+            <li>Ejemplo: Si dice S/ 10.47, yapea S/ 10.47 (NO S/ 10.00)</li>
+            <li>Los centavos son tu código de validación único</li>
+            <li>La validación es automática en segundos</li>
+          </ul>
+        </div>
+
         <p style="color:#666; font-size:0.9rem;">
           📱 Una vez yapeado, la validación es automática.<br>
           No cierres esta ventana.
@@ -182,8 +194,6 @@
 
   <!-- ============================================================
        SCRIPTS
-       ⚠️ IMPORTANTE: type="module" es OBLIGATORIO para que los
-       imports de ES6 funcionen en el navegador
   ============================================================= -->
   <script type="module" src="/js/sorteos.js"></script>
 
