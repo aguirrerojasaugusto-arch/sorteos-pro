@@ -14,7 +14,7 @@ function initVentas() {
 
 /* ==========================================
    AUTOCOMPLETADO POR DNI (VENTA PRESENCIAL)
-   ========================================== */
+========================================== */
 function inicializarBusquedaDNIAdmin() {
   const dniInput = document.getElementById('venta-dni');
   if (!dniInput) return;
@@ -51,12 +51,10 @@ async function buscarClientePorDNIAdmin(dni) {
     const data = await res.json();
 
     if (data.encontrado) {
-      // ✅ FORZAR MAYÚSCULAS en el autocompletado
       const nombreCompleto = `${data.datos.nombres || ''} ${data.datos.apellidos || ''}`.trim().toUpperCase();
       document.getElementById('venta-nombre').value = nombreCompleto;
       document.getElementById('venta-telefono').value = (data.datos.celular || '').toUpperCase();
       document.getElementById('venta-departamento').value = (data.datos.departamento || '').toUpperCase();
-      
       if (statusBadge) {
         statusBadge.textContent = '✓ Registrado';
         statusBadge.className = 'status-badge encontrado';
@@ -82,7 +80,6 @@ function setCamposVentaEditables(esEditable) {
   const nombreInput = document.getElementById('venta-nombre');
   const telefonoInput = document.getElementById('venta-telefono');
   const deptoInput = document.getElementById('venta-departamento');
-  
   if (nombreInput) nombreInput.readOnly = !esEditable;
   if (telefonoInput) telefonoInput.readOnly = !esEditable;
   if (deptoInput) deptoInput.readOnly = !esEditable;
@@ -121,7 +118,7 @@ function imprimirEstaVenta() {
 }
 
 function inyectarBotonesImpresion() {
-  // Intencionalmente vacío para no agregar botones extra debajo del formulario
+  // Intencionalmente vacío
 }
 
 function inyectarMenuImprimir() {
@@ -138,12 +135,12 @@ function inyectarMenuImprimir() {
   clon.removeAttribute('data-section');
   clon.onclick = (e) => { e.preventDefault(); e.stopPropagation(); abrirHojaImpresionTodos(); };
   clon.style.cursor = 'pointer';
+
   const icon = clon.querySelector('.menu-icon, i, svg, .icon');
   if (icon) icon.textContent = '🖨️'; else clon.insertAdjacentHTML('afterbegin', '<span class="menu-icon">🖨️</span> ');
   const txt = clon.childNodes;
   for (let n of txt) { if (n.nodeType === 3 && /Venta de Tickets/i.test(n.textContent)) n.textContent = ' Imprimir Tickets'; }
   if (!/Imprimir Tickets/.test(clon.textContent)) clon.append(' Imprimir Tickets');
-
   ref.insertAdjacentElement('afterend', clon);
 }
 
@@ -288,17 +285,14 @@ async function emitirTicketPresencial(event) {
   try {
     for (let i = 0; i < cantidad; i++) {
       const numeros = generarNumerosUnicos(sorteo.min_bolillas || 6, sorteo.max_numero || 51);
-
       const body = {
         sorteo_id, cliente_nombre: nombre, cliente_dni: dni, telefono, departamento,
         jugadas: [{ zona: 'A', numeros }], cantidad_sorteos: 1, si_o_si: false,
         total_pagado: sorteo.precio_jugada
       };
-
       const res = await fetch('/api/public/tickets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
-
       if (res.ok) {
         const data = await res.json();
         const t = data.tickets ? data.tickets[0] : data.ticket;
@@ -321,7 +315,6 @@ async function emitirTicketPresencial(event) {
 
     if (exitos > 0) {
       sessionStorage.setItem('ticketsVenta', JSON.stringify(ticketsVenta));
-      
       mostrarModalComprobante({
         nombre: nombre,
         dni: dni,
@@ -331,21 +324,18 @@ async function emitirTicketPresencial(event) {
         total: `S/ ${(sorteo.precio_jugada * exitos).toFixed(2)}`,
         tickets: ticketsVenta
       });
-      
-      // RESET COMPLETO DEL FORMULARIO
+      // RESET
       document.getElementById('venta-nombre').value = '';
       document.getElementById('venta-dni').value = '';
       document.getElementById('venta-telefono').value = '';
       document.getElementById('venta-departamento').value = '';
       document.getElementById('venta-cantidad').value = '1';
-      
       const statusBadge = document.getElementById('dni-status-admin');
       if (statusBadge) {
         statusBadge.textContent = '';
         statusBadge.className = 'status-badge';
       }
       setCamposVentaEditables(true);
-      
       calcularTotal();
       if (typeof cargarDatosGlobales === 'function') await cargarDatosGlobales();
     } else if (cantidad > 0) {
