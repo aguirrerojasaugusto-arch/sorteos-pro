@@ -4,21 +4,32 @@ import { setCamposClienteEditable } from './sorteos-dni.js';
 import { detenerPolling } from './sorteos-polling.js';
 
 export function abrirModal(idSorteo) {
+  console.log('🔍 abrirModal llamado con id:', idSorteo, 'tipo:', typeof idSorteo);
+  console.log('📦 Sorteos en state:', state.sorteos);
+  
   // ✅ FIX: comparación flexible string/number
   const sorteo = state.sorteos.find(s => String(s.id) === String(idSorteo));
+  console.log('🎯 Sorteo encontrado:', sorteo);
+  
   if (!sorteo) {
-    console.warn('⚠️ Sorteo no encontrado. id recibido:', idSorteo, '| IDs disponibles:', state.sorteos.map(s => s.id));
+    console.error('❌ Sorteo no encontrado. IDs disponibles:', state.sorteos.map(s => ({ id: s.id, tipo: typeof s.id })));
     return alert('No se pudo cargar el sorteo. Recarga la página.');
   }
 
+  console.log('⏰ Calculando fecha objetivo...');
   const objetivo = fechaObjetivoLima(sorteo);
+  console.log('📅 Fecha objetivo:', objetivo);
+  
   if (objetivo && objetivo.getTime() <= Date.now()) {
+    console.log('⛔ Sorteo finalizado');
     return alert('Este sorteo ya ha finalizado.');
   }
 
+  console.log('🛑 Deteniendo polling...');
   detenerPolling();
   state.sorteoSeleccionado = sorteo;
 
+  console.log('📝 Llenando formulario...');
   document.getElementById('compra-sorteo-id').value = String(sorteo.id);
   document.getElementById('compra-precio').value = sorteo.precio_jugada;
   document.getElementById('precio-unitario').textContent = sorteo.precio_jugada;
@@ -28,6 +39,7 @@ export function abrirModal(idSorteo) {
   document.getElementById('pago-numero').textContent = config.contacto_telefono || '993 897 647';
   document.getElementById('pago-nombre').textContent = config.brand_name || 'Artesanía Mariposita';
 
+  console.log('👁️ Mostrando modal...');
   document.getElementById('modal-compra').classList.remove('hidden');
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('resultado-compra').classList.add('hidden');
@@ -43,6 +55,7 @@ export function abrirModal(idSorteo) {
     preview.src = '';
   }
 
+  console.log('✅ Modal abierto correctamente');
   ocultarErrorComprobante();
   setCamposClienteEditable(true);
   actualizarTotal();
