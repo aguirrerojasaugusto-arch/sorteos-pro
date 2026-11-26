@@ -7,6 +7,7 @@ export function abrirModal(idSorteo) {
   console.log('🔍 abrirModal llamado con id:', idSorteo, 'tipo:', typeof idSorteo);
   console.log('📦 Sorteos en state:', state.sorteos);
   
+  // ✅ FIX 1: comparación flexible string/number
   const sorteo = state.sorteos.find(s => String(s.id) === String(idSorteo));
   console.log('🎯 Sorteo encontrado:', sorteo);
   
@@ -40,7 +41,7 @@ export function abrirModal(idSorteo) {
 
   console.log('👁️ Mostrando modal...');
   
-  // ✅ FIX: Forzar estilos inline para asegurar visibilidad
+  // ✅ FIX 2: Forzar visibilidad explícita (opacity:1, visibility:visible)
   const modal = document.getElementById('modal-compra');
   modal.classList.remove('hidden');
   modal.style.display = 'flex';
@@ -50,6 +51,8 @@ export function abrirModal(idSorteo) {
   modal.style.zIndex = '9999';
   modal.style.alignItems = 'center';
   modal.style.justifyContent = 'center';
+  modal.style.opacity = '1';
+  modal.style.visibility = 'visible';
   
   document.getElementById('form-compra').classList.remove('hidden');
   document.getElementById('form-compra').style.display = 'block';
@@ -81,6 +84,8 @@ export function cerrarModal() {
   const modal = document.getElementById('modal-compra');
   modal.classList.add('hidden');
   modal.style.display = '';
+  modal.style.opacity = '';
+  modal.style.visibility = '';
 }
 
 export function cambiarCantidad(delta) {
