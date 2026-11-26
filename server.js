@@ -41,6 +41,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== '
 const verifyApiKey = (req, res, next) => {
   const expectedKey = process.env.API_KEY;
   if (!expectedKey) return next(); // Si no hay API_KEY configurada, permitir (desarrollo)
+  
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
   if (!apiKey || apiKey !== expectedKey) {
     return res.status(401).json({ status: 'error', mensaje: 'No autorizado.' });
@@ -49,55 +50,57 @@ const verifyApiKey = (req, res, next) => {
 };
 
 // ============================================
-// ✅ Webhook para MacroDroid (MEJORADO)
+// ✅ Webhook para MacroDroid (CORREGIDO PARA FLUJO ACTUAL)
 // ============================================
 app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
   try {
     const sms_body_raw = req.query.sms_body || req.body.sms_body || req.body.body || req.body.mensaje || '';
     const sms_body = String(sms_body_raw).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-
+    
     if (!sms_body) {
       return res.status(400).json({ status: 'error', mensaje: 'Falta el contenido del SMS' });
     }
-
+    
     console.log('📩 SMS recibido de MacroDroid:', sms_body);
-
+    
     // Regex para capturar el monto y código de operación
     const regexMonto = /S\/\.?\s*([0-9.,]+)/i;
     const regexCodigo = /(?:C[oó]digo|Cod|Code|Operaci[oó]n)[:\s]*([A-Z0-9]+)/i;
+    
     const matchMonto = sms_body.match(regexMonto);
     const matchCodigo = sms_body.match(regexCodigo);
-
+    
     if (!matchMonto) {
       return res.json({ status: 'error', mensaje: 'No se detectó un monto en el SMS' });
     }
-
+    
     const montoStr = matchMonto[1].replace(',', '.');
     const monto = parseFloat(montoStr);
     const codigo = matchCodigo ? matchCodigo[1] : `YAPE_${Date.now()}`;
-
+    
     console.log(`✅ Pago detectado: S/.${monto} - Código: ${codigo}`);
-
+    
     // 1. Evitar procesar el mismo SMS dos veces (por código de operación)
     const existeCodigo = await db.execute({
       sql: 'SELECT 1 FROM tickets WHERE comprobante_hash = ? LIMIT 1',
       args: [codigo]
     });
+    
     if (existeCodigo.rows.length > 0) {
       return res.json({ status: 'revisar', mensaje: 'Este código de Yape ya fue utilizado' });
     }
-
-    // 2. Buscar el ticket pendiente con el monto exacto (incluye centavos mágicos)
+    
+    // 2. ✅ CORREGIDO: Buscar el ticket por total_pagado y sin comprobante previo
+    // (El flujo actual de comprar-aleatorio guarda en total_pagado, no en monto_exacto)
     const result = await db.execute({
       sql: `SELECT * FROM tickets
-            WHERE monto_exacto = ?
-              AND estado_pago = 'pendiente'
-              AND (expires_at IS NULL OR expires_at > datetime('now'))
+            WHERE total_pagado = ?
+              AND (comprobante_hash IS NULL OR comprobante_hash = '')
             ORDER BY creado_en ASC
             LIMIT 1`,
       args: [monto]
     });
-
+    
     if (result.rows.length === 0) {
       // Log del intento fallido
       await db.execute({
@@ -111,9 +114,9 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
         mensaje: `Pago recibido de S/.${monto}, pero no hay ticket pendiente con ese monto exacto.`
       });
     }
-
+    
     const ticket = result.rows[0];
-
+    
     // 3. ✅ Validar el ticket: actualizar estado y comprobante_hash
     await db.execute({
       sql: `UPDATE tickets
@@ -122,21 +125,22 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
             WHERE id = ?`,
       args: [codigo, ticket.id]
     });
-
+    
     // 4. Log exitoso
     await db.execute({
       sql: `INSERT INTO yape_webhook_logs (sms_body, monto_detectado, codigo_operacion, ticket_id, estado)
             VALUES (?, ?, ?, ?, ?)`,
       args: [sms_body, monto, codigo, ticket.id, 'validado']
     });
-
+    
     console.log(`🎉 Ticket #${ticket.codigo_ticket} APROBADO (Monto: S/.${monto})`);
-
+    
     return res.json({
       status: 'aprobado',
       numero_ticket: ticket.codigo_ticket,
       mensaje: `Pago validado. Tu número es: ${ticket.codigo_ticket}`
     });
+    
   } catch (error) {
     console.error('❌ Error procesando pago de Yape:', error);
     res.status(500).json({ status: 'error', mensaje: 'Error interno del servidor' });
@@ -144,16 +148,12 @@ app.post('/api/validar-pago-yape', verifyApiKey, async (req, res) => {
 });
 
 // ============================================
-// ✅ NUEVO: Endpoint para limpiar tickets expirados (puedes llamarlo con cron)
+// ✅ Endpoint para limpiar tickets expirados (puedes llamarlo con cron)
 // ============================================
 app.post('/api/admin/limpiar-expirados', verifyApiKey, async (req, res) => {
   try {
     const result = await db.execute({
-      sql: `UPDATE tickets
-            SET estado_pago = 'expirado'
-            WHERE estado_pago = 'pendiente'
-              AND expires_at IS NOT NULL
-              AND expires_at < datetime('now')`
+      sql: `UPDATE tickets SET estado_pago = 'expirado' WHERE estado_pago = 'pendiente' AND expires_at IS NOT NULL AND expires_at < datetime('now')`
     });
     console.log(`🧹 Tickets expirados limpiados: ${result.changes || 0}`);
     res.json({ status: 'ok', limpiados: result.changes || 0 });
