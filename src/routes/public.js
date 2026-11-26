@@ -30,7 +30,6 @@ const storage = new CloudinaryStorage({
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
   },
 });
-
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -56,18 +55,18 @@ router.get('/bootstrap', async (req, res) => {
   try {
     const config = await appRepo.getConfig();
     const sorteosActivos = await appRepo.getSorteosActivos();
-    const sorteos = sorteosActivos.map(s => ({ 
-      ...s, 
-      combo_descuentos: s.combo_descuentos ? JSON.parse(s.combo_descuentos) : [] 
+    const sorteos = sorteosActivos.map(s => ({
+      ...s,
+      combo_descuentos: s.combo_descuentos ? JSON.parse(s.combo_descuentos) : []
     }));
     res.json({
       config,
       sorteos,
       promociones: await appRepo.getPromocionesActivas(),
       resultados_recientes: (await appRepo.getAllResultados()).slice(0, 5),
-      ganadores: (await appRepo.getGanadoresRecientes(5)).map(g => ({ 
-        ...g, 
-        codigo_ticket: g.codigo_ticket.slice(0, 5) + '****' 
+      ganadores: (await appRepo.getGanadoresRecientes(5)).map(g => ({
+        ...g,
+        codigo_ticket: g.codigo_ticket.slice(0, 5) + '****'
       })),
       carrusel: await appRepo.getCarruselImagenes(),
       bolas_logos: await appRepo.getBolasLogos(),
@@ -231,14 +230,13 @@ router.get('/consultar-tickets', async (req, res) => {
 });
 
 // ============================================================
+// ✅ FLUJO YAPE: PAGO CON VALIDACIÓN POR CÓDIGO DE 3 DÍGITOS
 // ============================================================
-// ✅ NUEVO FLUJO: PAGO CON YAPE + VALIDACIÓN POR SMS (MacroDroid)
-// ============================================================
-// ============================================================
-
 const PAGO_EXPIRA_MIN = 15;
 const YAPE_NUMERO_DEFAULT = '993 897 647';
+const MAX_INTENTOS_CODIGO = 3;
 
+// ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
 function centavosAleatorios() {
   return Math.floor(Math.random() * 99) + 1; // 1..99
 }
@@ -257,13 +255,33 @@ function generarJugadasAleatorias(sorteo, cantidad) {
   return out;
 }
 
+// ✅ Extrae monto del SMS (formato Yape/Plin)
 function extraerMontoDeSMS(texto) {
   if (!texto) return null;
-  // "Recibiste S/ 20.47", "Yapeaste S/20.47", "S/ 20.47"
   const m = String(texto).match(/S\/\s*([0-9]+(?:[.,][0-9]{1,2})?)/i);
   if (!m) return null;
   const n = parseFloat(m[1].replace(',', '.'));
   return isNaN(n) ? null : +n.toFixed(2);
+}
+
+// ✅ NUEVO: Extrae código de operación del SMS y devuelve los últimos 3 dígitos
+function extraerCodigoOperacion(texto) {
+  if (!texto) return null;
+  const t = String(texto);
+  const patterns = [
+    /c[óo]digo(?:\s+de\s+operaci[óo]n)?[:\s#]*(\d{5,8})/i,
+    /n[°º]\s*(?:de\s+)?operaci[óo]n[:\s#]*(\d{5,8})/i,
+    /c[óo]digo[:\s#]*(\d{5,8})/i,
+    /operaci[óo]n[:\s#]*(\d{5,8})/i,
+  ];
+  for (const p of patterns) {
+    const m = t.match(p);
+    if (m) return { completo: m[1], tresDigitos: m[1].slice(-3) };
+  }
+  // Fallback: buscar cualquier número de 6 dígitos
+  const m2 = t.match(/\b(\d{6})\b/);
+  if (m2) return { completo: m2[1], tresDigitos: m2[1].slice(-3) };
+  return null;
 }
 
 async function calcularBase({ sorteo, jugadas, cantidadSorteos, siOSi, boliyapaNumero }) {
@@ -276,10 +294,7 @@ async function calcularBase({ sorteo, jugadas, cantidadSorteos, siOSi, boliyapaN
 
 // ------------------------------------------------------------
 // POST /api/public/pago-pendiente
-// Crea un pago pendiente con monto único (base + centavos random)
-// Body: { sorteo_id, cliente_dni, cliente_nombre, cliente_telefono,
-//         cliente_departamento, cantidad_tickets, cantidad_sorteos,
-//         jugadas?, si_o_si?, boliyapa_numero? }
+// ✅ MODIFICADO: Ahora usa MONTO EXACTO (sin centavos aleatorios)
 // ------------------------------------------------------------
 router.post('/pago-pendiente', async (req, res) => {
   try {
@@ -305,13 +320,10 @@ router.post('/pago-pendiente', async (req, res) => {
 
     const nombre = (cliente_nombre || '').trim();
     if (!nombre || nombre.length < 3) throw new Error('Nombre del titular requerido');
-
     await userRepo.saveOrUpdateClient(String(cliente_dni), nombre, cliente_telefono || '', cliente_departamento || '');
 
-    // ---- Jugadas: si vienen del boletera se validan; si no, se generan random ----
     const nSorteos = Math.max(1, Math.min(50, Number(cantidad_sorteos) || 1));
     const nJugadasSolicitadas = Math.max(1, Math.min(20, Number(cantidad_tickets) || 1));
-
     let jugadas;
     let cantidadTickets;
     if (Array.isArray(jugadasBody) && jugadasBody.length > 0) {
@@ -331,51 +343,32 @@ router.post('/pago-pendiente', async (req, res) => {
       siOSi: !!si_o_si,
       boliyapaNumero: boliyapa_numero || null
     });
-
     if (base <= 0) throw new Error('Monto inválido');
 
-    // ---- Buscar monto único entre pendientes activos ----
     const token = randomBytes(16).toString('hex');
     const expiraEn = new Date(Date.now() + PAGO_EXPIRA_MIN * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
 
-    let row = null;
-    let montoUnico = 0;
-    let centavos = 0;
+    // ✅ MONTO EXACTO: ya NO usamos centavos aleatorios
+    const montoExacto = base;
 
-    for (let attempt = 0; attempt < 40; attempt++) {
-      centavos = centavosAleatorios();
-      montoUnico = +(base + centavos / 100).toFixed(2);
-
-      try {
-        const insert = await db.execute({
-          sql: `INSERT INTO pagos_pendientes
-                (token, sorteo_id, cliente_dni, cliente_nombre, cliente_telefono, cliente_departamento,
-                 cantidad_tickets, cantidad_sorteos, monto_base, monto_unico, estado,
-                 jugadas_json, si_o_si, boliyapa_numero, expira_en)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?)
-                RETURNING *`,
-          args: [
-            token, sorteo.id, String(cliente_dni), nombre,
-            cliente_telefono || '', cliente_departamento || '',
-            cantidadTickets, nSorteos, base, montoUnico,
-            JSON.stringify(jugadas), si_o_si ? 1 : 0,
-            boliyapa_numero || null, expiraEn
-          ]
-        });
-        row = insert.rows[0];
-        break;
-      } catch (err) {
-        const msg = String(err?.message || '');
-        if (/UNIQUE constraint/i.test(msg)) {
-          // Chocó con otro pago activo → probar otro centavo
-          continue;
-        }
-        throw err;
-      }
-    }
-
-    if (!row) throw new Error('No se pudo generar un monto único. Intenta de nuevo en unos segundos.');
+    const insert = await db.execute({
+      sql: `INSERT INTO pagos_pendientes
+            (token, sorteo_id, cliente_dni, cliente_nombre, cliente_telefono, cliente_departamento,
+             cantidad_tickets, cantidad_sorteos, monto_base, monto_unico, estado,
+             jugadas_json, si_o_si, boliyapa_numero, expira_en)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?)
+            RETURNING *`,
+      args: [
+        token, sorteo.id, String(cliente_dni), nombre,
+        cliente_telefono || '', cliente_departamento || '',
+        cantidadTickets, nSorteos, base, montoExacto,
+        JSON.stringify(jugadas), si_o_si ? 1 : 0,
+        boliyapa_numero || null, expiraEn
+      ]
+    });
+    const row = insert.rows[0];
+    if (!row) throw new Error('No se pudo crear el pago pendiente.');
 
     const yapeNumero = (await appRepo.getSetting('yape_numero')) || YAPE_NUMERO_DEFAULT;
     const yapeTitular = (await appRepo.getSetting('yape_titular')) || 'Artesanía Mariposita';
@@ -386,8 +379,7 @@ router.post('/pago-pendiente', async (req, res) => {
       cantidad_tickets: cantidadTickets,
       cantidad_sorteos: nSorteos,
       monto_base: base,
-      centavos,
-      monto_total: montoUnico,
+      monto_total: montoExacto, // ✅ Ahora es monto exacto, sin centavos aleatorios
       yape_numero: yapeNumero,
       yape_titular: yapeTitular,
       expira_en: expiraEn,
@@ -401,7 +393,6 @@ router.post('/pago-pendiente', async (req, res) => {
 
 // ------------------------------------------------------------
 // POST /api/public/pago-pendiente/:token/comprobante
-// Sube la captura del Yape asociada a un pago pendiente
 // ------------------------------------------------------------
 router.post('/pago-pendiente/:token/comprobante', upload.single('comprobante'), async (req, res) => {
   try {
@@ -414,7 +405,6 @@ router.post('/pago-pendiente/:token/comprobante', upload.single('comprobante'), 
       args: [token]
     });
     if (pending.rows.length === 0) throw new Error('Pago pendiente no encontrado');
-
     const row = pending.rows[0];
 
     if (row.estado === 'validado') {
@@ -424,13 +414,9 @@ router.post('/pago-pendiente/:token/comprobante', upload.single('comprobante'), 
       throw new Error('Este pago ya expiró. Vuelve a intentarlo.');
     }
 
-    // Auto-expiración
     const expira = new Date(String(row.expira_en).replace(' ', 'T') + 'Z');
     if (expira.getTime() < Date.now()) {
-      await db.execute({
-        sql: `UPDATE pagos_pendientes SET estado='expirado' WHERE id=?`,
-        args: [row.id]
-      });
+      await db.execute({ sql: `UPDATE pagos_pendientes SET estado='expirado' WHERE id=?`, args: [row.id] });
       throw new Error('El pago expiró. Vuelve a intentarlo.');
     }
 
@@ -440,7 +426,6 @@ router.post('/pago-pendiente/:token/comprobante', upload.single('comprobante'), 
             WHERE id=?`,
       args: [req.file.path, row.id]
     });
-
     res.json({ ok: true, estado: 'comprobante_subido', comprobante_url: req.file.path });
   } catch (e) {
     console.error('Error en /pago-pendiente/:token/comprobante:', e);
@@ -449,8 +434,133 @@ router.post('/pago-pendiente/:token/comprobante', upload.single('comprobante'), 
 });
 
 // ------------------------------------------------------------
+// ✅ NUEVO: POST /api/public/pago-pendiente/:token/codigo
+// El cliente ingresa los 3 dígitos de la constancia Yape
+// ------------------------------------------------------------
+router.post('/pago-pendiente/:token/codigo', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { codigo_3d } = req.body || {};
+
+    if (!token) throw new Error('Token requerido');
+    if (!codigo_3d || !/^\d{3}$/.test(String(codigo_3d))) {
+      return res.status(400).json({ error: 'El código debe ser exactamente 3 dígitos numéricos' });
+    }
+
+    const pending = await db.execute({
+      sql: `SELECT * FROM pagos_pendientes WHERE token = ? LIMIT 1`,
+      args: [token]
+    });
+    if (pending.rows.length === 0) return res.status(404).json({ error: 'Pago no encontrado' });
+    const row = pending.rows[0];
+
+    // Auto-expirar si corresponde
+    if (row.estado === 'pendiente' || row.estado === 'verificando') {
+      const expira = new Date(String(row.expira_en).replace(' ', 'T') + 'Z');
+      if (expira.getTime() < Date.now()) {
+        await db.execute({ sql: `UPDATE pagos_pendientes SET estado='expirado' WHERE id=?`, args: [row.id] });
+        return res.status(410).json({ error: 'El pago expiró' });
+      }
+    }
+
+    if (row.estado === 'validado') {
+      return res.json({ ok: true, estado: 'validado', message: 'Pago ya validado' });
+    }
+    if (row.estado === 'expirado' || row.estado === 'rechazado') {
+      return res.status(410).json({ error: 'Pago expirado o rechazado' });
+    }
+
+    // ✅ ESCENARIO A: Buscar en pagos_recibidos si ya llegó el SMS
+    const recibido = await db.execute({
+      sql: `SELECT * FROM pagos_recibidos
+            WHERE monto = ? AND codigo_3d = ? AND estado = 'LIBRE'
+            ORDER BY recibido_en DESC LIMIT 1`,
+      args: [row.monto_unico, String(codigo_3d)]
+    });
+
+    if (recibido.rows.length > 0) {
+      // ¡Coincidencia! Consumir el registro y validar el pago
+      const rec = recibido.rows[0];
+      await db.execute({
+        sql: `UPDATE pagos_recibidos SET estado='CONSUMIDO', pago_pendiente_id=? WHERE id=?`,
+        args: [row.id, rec.id]
+      });
+      await sorteoService.validarPagoPendiente(row, rec.sms_texto, rec.codigo_operacion);
+      console.log(`✅ Escenario A: código ${codigo_3d} + monto ${row.monto_unico} → validado`);
+      return res.json({ ok: true, estado: 'validado', escenario: 'A', message: 'Pago validado automáticamente' });
+    }
+
+    // ✅ ESCENARIO B: SMS no ha llegado aún → marcar como VERIFICANDO
+    const nuevosIntentos = (Number(row.intentos_codigo) || 0) + 1;
+    await db.execute({
+      sql: `UPDATE pagos_pendientes
+            SET codigo_cliente_3d = ?, estado_verificacion = 'VERIFICANDO', intentos_codigo = ?
+            WHERE id = ?`,
+      args: [String(codigo_3d), nuevosIntentos, row.id]
+    });
+
+    console.log(`🔍 Escenario B: código ${codigo_3d} registrado, esperando SMS... (intento ${nuevosIntentos})`);
+    res.json({
+      ok: true,
+      estado: 'verificando',
+      escenario: 'B',
+      intentos: nuevosIntentos,
+      max_intentos: MAX_INTENTOS_CODIGO,
+      message: `Código registrado. Esperando confirmación del SMS... (${nuevosIntentos}/${MAX_INTENTOS_CODIGO})`
+    });
+  } catch (e) {
+    console.error('Error en /pago-pendiente/:token/codigo:', e);
+    res.status(500).json({ error: safeMsg(e) });
+  }
+});
+
+// ------------------------------------------------------------
+// ✅ NUEVO: POST /api/public/pago-pendiente/:token/captura
+// Plan de respaldo: cliente sube captura → REVISION_MANUAL
+// ------------------------------------------------------------
+router.post('/pago-pendiente/:token/captura', upload.single('captura'), async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) throw new Error('Token requerido');
+    if (!req.file) throw new Error('Debes subir la captura del Yape');
+
+    const pending = await db.execute({
+      sql: `SELECT * FROM pagos_pendientes WHERE token = ? LIMIT 1`,
+      args: [token]
+    });
+    if (pending.rows.length === 0) throw new Error('Pago pendiente no encontrado');
+    const row = pending.rows[0];
+
+    if (row.estado === 'validado') {
+      return res.json({ ok: true, estado: 'validado' });
+    }
+    if (row.estado === 'expirado') throw new Error('El pago expiró');
+
+    await db.execute({
+      sql: `UPDATE pagos_pendientes
+            SET estado='revision_manual',
+                estado_verificacion='REVISION_MANUAL',
+                captura_url=?
+            WHERE id=?`,
+      args: [req.file.path, row.id]
+    });
+
+    // ✅ Enviar alerta WhatsApp (placeholder — implementar con tu proveedor)
+    await enviarAlertaWhatsApp(row, req.file.path).catch(err => {
+      console.warn('⚠️ No se pudo enviar alerta WhatsApp:', err.message);
+    });
+
+    console.log(`📋 Pago #${row.id} enviado a REVISION_MANUAL (DNI ${row.cliente_dni})`);
+    res.json({ ok: true, estado: 'revision_manual', captura_url: req.file.path });
+  } catch (e) {
+    console.error('Error en /pago-pendiente/:token/captura:', e);
+    res.status(400).json({ error: safeMsg(e) });
+  }
+});
+
+// ------------------------------------------------------------
 // GET /api/public/pago-pendiente/:token/status
-// Endpoint de polling desde la web (cada 3s)
+// ✅ MODIFICADO: incluye nuevos campos de estado_verificacion
 // ------------------------------------------------------------
 router.get('/pago-pendiente/:token/status', async (req, res) => {
   try {
@@ -460,37 +570,33 @@ router.get('/pago-pendiente/:token/status', async (req, res) => {
       args: [token]
     });
     if (pending.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
-
     const row = pending.rows[0];
 
     // Auto-expirar si corresponde
-    if (row.estado === 'pendiente' || row.estado === 'comprobante_subido') {
+    if (row.estado === 'pendiente' || row.estado === 'verificando' || row.estado === 'comprobante_subido') {
       const expira = new Date(String(row.expira_en).replace(' ', 'T') + 'Z');
       if (expira.getTime() < Date.now()) {
-        await db.execute({
-          sql: `UPDATE pagos_pendientes SET estado='expirado' WHERE id=?`,
-          args: [row.id]
-        });
+        await db.execute({ sql: `UPDATE pagos_pendientes SET estado='expirado' WHERE id=?`, args: [row.id] });
         row.estado = 'expirado';
       }
     }
 
     const out = {
       estado: row.estado,
+      estado_verificacion: row.estado_verificacion || null,
       monto_total: row.monto_unico,
       expira_en: row.expira_en,
       tiene_comprobante: !!row.comprobante_url,
-      cantidad_tickets: row.cantidad_tickets
+      tiene_captura: !!row.captura_url,
+      cantidad_tickets: row.cantidad_tickets,
+      intentos_codigo: Number(row.intentos_codigo) || 0,
+      max_intentos: MAX_INTENTOS_CODIGO,
+      permite_captura: (Number(row.intentos_codigo) || 0) >= MAX_INTENTOS_CODIGO
     };
 
     if (row.estado === 'validado' && row.tickets_generados_json) {
-      try {
-        out.tickets = JSON.parse(row.tickets_generados_json);
-      } catch {
-        out.tickets = [];
-      }
+      try { out.tickets = JSON.parse(row.tickets_generados_json); } catch { out.tickets = []; }
     }
-
     res.json(out);
   } catch (e) {
     console.error('Error en /pago-pendiente/:token/status:', e);
@@ -500,8 +606,7 @@ router.get('/pago-pendiente/:token/status', async (req, res) => {
 
 // ------------------------------------------------------------
 // POST /api/public/yape/sms-webhook
-// Recibe el SMS desde MacroDroid y valida el pago.
-// Protección: ?secret=XXX o header 'x-webhook-secret'
+// ✅ MODIFICADO: cruce bidireccional con código de 3 dígitos
 // ------------------------------------------------------------
 router.post(
   '/yape/sms-webhook',
@@ -515,9 +620,8 @@ router.post(
       const provided = req.query?.secret
         || req.headers['x-webhook-secret']
         || (req.body && typeof req.body === 'object' && req.body.secret);
-
       if (!expected) {
-        console.warn('⚠️  MACRODROID_WEBHOOK_SECRET no configurado en .env → webhook rechazado por seguridad');
+        console.warn('⚠️  MACRODROID_WEBHOOK_SECRET no configurado → webhook rechazado');
         return res.status(503).json({ error: 'Webhook no configurado' });
       }
       if (!provided || String(provided) !== String(expected)) {
@@ -525,21 +629,15 @@ router.post(
         return res.status(401).json({ error: 'No autorizado' });
       }
 
-      // --- Extraer texto del SMS en múltiples formatos ---
+      // --- Extraer texto del SMS ---
       let texto = '';
       if (typeof req.body === 'string') {
         texto = req.body;
       } else if (req.body && typeof req.body === 'object') {
-        texto = req.body.texto
-          || req.body.body
-          || req.body.sms
-          || req.body.message
-          || req.body.fullMessage
-          || '';
+        texto = req.body.texto || req.body.body || req.body.sms || req.body.message || req.body.fullMessage || '';
       }
-
       if (!texto || typeof texto !== 'string') {
-        return res.status(400).json({ error: 'Texto del SMS requerido (campo: texto/body/sms/message)' });
+        return res.status(400).json({ error: 'Texto del SMS requerido', texto });
       }
 
       const monto = extraerMontoDeSMS(texto);
@@ -547,79 +645,74 @@ router.post(
         return res.status(400).json({ error: 'No se encontró un monto S/ en el SMS', texto });
       }
 
-      // --- Buscar pago pendiente con ese monto exacto ---
-      const pending = await db.execute({
-        sql: `SELECT * FROM pagos_pendientes
-              WHERE monto_unico = ?
-                AND estado IN ('pendiente','comprobante_subido')
-                AND expira_en > datetime('now')
-              ORDER BY creado_en DESC
-              LIMIT 1`,
-        args: [monto]
-      });
+      const codigoInfo = extraerCodigoOperacion(texto);
+      if (!codigoInfo) {
+        console.warn(`⚠️ SMS sin código de operación detectable: "${texto.slice(0, 120)}"`);
+      }
 
-      if (pending.rows.length === 0) {
-        console.warn(`Webhook SMS: ningún pago pendiente con S/ ${monto} — SMS: "${texto.slice(0, 120)}"`);
-        return res.status(404).json({
-          matched: false,
-          monto,
-          error: 'No hay pago pendiente con ese monto activo'
+      // --- Guardar en pagos_recibidos ---
+      const insertRec = await db.execute({
+        sql: `INSERT INTO pagos_recibidos (monto, codigo_operacion, codigo_3d, sms_texto, estado)
+              VALUES (?, ?, ?, ?, 'LIBRE')
+              RETURNING *`,
+        args: [monto, codigoInfo?.completo || null, codigoInfo?.tresDigitos || null, texto]
+      });
+      const rec = insertRec.rows[0];
+
+      // --- CRUCE BIDIRECCIONAL ---
+      // Buscar pago_pendiente VERIFICANDO con mismo monto y código 3d (Escenario B)
+      let matched = null;
+      if (codigoInfo?.tresDigitos) {
+        const matchB = await db.execute({
+          sql: `SELECT * FROM pagos_pendientes
+                WHERE monto_unico = ?
+                  AND codigo_cliente_3d = ?
+                  AND estado_verificacion = 'VERIFICANDO'
+                  AND estado IN ('pendiente','verificando','comprobante_subido')
+                  AND expira_en > datetime('now')
+                ORDER BY creado_en DESC LIMIT 1`,
+          args: [monto, codigoInfo.tresDigitos]
         });
+        if (matchB.rows.length > 0) {
+          matched = matchB.rows[0];
+          console.log(`✅ Escenario B detectado: pago #${matched.id} matched con SMS`);
+        }
       }
 
-      const row = pending.rows[0];
-
-      // Si otro SMS ya lo validó (idempotencia), responder OK
-      if (row.estado === 'validado') {
-        return res.json({ matched: true, already_validated: true, pago_id: row.id });
+      // Si no hay match por código, buscar solo por monto (fallback — comportamiento legacy)
+      if (!matched) {
+        const matchMonto = await db.execute({
+          sql: `SELECT * FROM pagos_pendientes
+                WHERE monto_unico = ?
+                  AND estado IN ('pendiente','comprobante_subido')
+                  AND expira_en > datetime('now')
+                ORDER BY creado_en DESC LIMIT 1`,
+          args: [monto]
+        });
+        if (matchMonto.rows.length > 0) {
+          matched = matchMonto.rows[0];
+          console.log(`⚠️ Match solo por monto (sin código): pago #${matched.id}`);
+        }
       }
 
-      // --- Crear los tickets reales ---
-      let jugadas = [];
-      try { jugadas = JSON.parse(row.jugadas_json || '[]'); } catch { jugadas = []; }
-      if (!Array.isArray(jugadas) || jugadas.length === 0) {
-        throw new Error('El pago pendiente no tiene jugadas guardadas');
+      if (!matched) {
+        console.log(`📭 SMS recibido (monto S/ ${monto}) sin pago pendiente asociado → queda LIBRE`);
+        return res.json({ matched: false, monto, codigo_3d: codigoInfo?.tresDigitos, pago_recibido_id: rec.id });
       }
 
-      const resultado = await sorteoService.comprar({
-        sorteo_id: row.sorteo_id,
-        cliente_nombre: row.cliente_nombre,
-        cliente_dni: row.cliente_dni,
-        telefono: row.cliente_telefono,
-        departamento: row.cliente_departamento,
-        jugadas,
-        cantidad_sorteos: Number(row.cantidad_sorteos) || 1,
-        si_o_si: !!row.si_o_si,
-        boliyapa_numero: row.boliyapa_numero || null,
-        comprobante_url: row.comprobante_url || null,
-        comprobante_hash: null,
-        modo_aleatorio: true,
-        total_pagado: row.monto_unico
-      });
-
-      // --- Actualizar pendiente ---
-      const ticketsGenerados = Array.isArray(resultado?.tickets) ? resultado.tickets : [];
+      // ✅ Validar el pago
       await db.execute({
-        sql: `UPDATE pagos_pendientes
-              SET estado='validado',
-                  validado_en=datetime('now'),
-                  sms_texto=?,
-                  sms_monto=?,
-                  tickets_generados_json=?
-              WHERE id=?`,
-        args: [texto, monto, JSON.stringify(ticketsGenerados), row.id]
+        sql: `UPDATE pagos_recibidos SET estado='CONSUMIDO', pago_pendiente_id=? WHERE id=?`,
+        args: [matched.id, rec.id]
       });
-
-      console.log(`✅ SMS validó pago #${row.id} → DNI ${row.cliente_dni} → S/ ${monto} → ${ticketsGenerados.length} ticket(s)`);
+      await sorteoService.validarPagoPendiente(matched, texto, codigoInfo?.completo);
 
       res.json({
         matched: true,
-        pago_id: row.id,
+        pago_id: matched.id,
         monto,
-        tickets: ticketsGenerados.map(t => ({
-          codigo_ticket: t.codigo_ticket,
-          sorteo_id: t.sorteo_id
-        }))
+        codigo_3d: codigoInfo?.tresDigitos,
+        escenario: matched.estado_verificacion === 'VERIFICANDO' ? 'B' : 'A'
       });
     } catch (e) {
       console.error('Error en webhook SMS:', e);
@@ -627,5 +720,86 @@ router.post(
     }
   }
 );
+
+// ============================================================
+// ✅ ADMIN: Aprobar/Rechazar revisión manual
+// ============================================================
+router.post('/pago-pendiente/:token/aprobar', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { operador } = req.body || {};
+    if (!token) throw new Error('Token requerido');
+
+    const pending = await db.execute({
+      sql: `SELECT * FROM pagos_pendientes WHERE token = ? LIMIT 1`,
+      args: [token]
+    });
+    if (pending.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
+    const row = pending.rows[0];
+
+    if (row.estado !== 'revision_manual') {
+      return res.status(400).json({ error: `No se puede aprobar: estado actual es '${row.estado}'` });
+    }
+
+    await sorteoService.validarPagoPendiente(row, 'APROBACION_MANUAL', null);
+    await db.execute({
+      sql: `UPDATE pagos_pendientes SET aprobado_por=?, aprobado_en=datetime('now') WHERE id=?`,
+      args: [operador || 'admin', row.id]
+    });
+
+    // Marcar SMS recibidos relacionados como CONCILIADO_MANUALMENTE
+    await db.execute({
+      sql: `UPDATE pagos_recibidos SET estado='CONCILIADO_MANUALMENTE' WHERE pago_pendiente_id=?`,
+      args: [row.id]
+    });
+
+    console.log(`✅ Pago #${row.id} aprobado manualmente por ${operador || 'admin'}`);
+    res.json({ ok: true, estado: 'validado' });
+  } catch (e) {
+    console.error('Error en aprobar:', e);
+    res.status(500).json({ error: safeMsg(e) });
+  }
+});
+
+router.post('/pago-pendiente/:token/rechazar', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { operador, motivo } = req.body || {};
+    if (!token) throw new Error('Token requerido');
+
+    const pending = await db.execute({
+      sql: `SELECT * FROM pagos_pendientes WHERE token = ? LIMIT 1`,
+      args: [token]
+    });
+    if (pending.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
+    const row = pending.rows[0];
+
+    if (row.estado !== 'revision_manual') {
+      return res.status(400).json({ error: `No se puede rechazar: estado actual es '${row.estado}'` });
+    }
+
+    await db.execute({
+      sql: `UPDATE pagos_pendientes SET estado='rechazado', motivo_rechazo=?, aprobado_por=? WHERE id=?`,
+      args: [motivo || 'Rechazado por operador', operador || 'admin', row.id]
+    });
+
+    console.log(`❌ Pago #${row.id} rechazado por ${operador || 'admin'}: ${motivo}`);
+    res.json({ ok: true, estado: 'rechazado' });
+  } catch (e) {
+    console.error('Error en rechazar:', e);
+    res.status(500).json({ error: safeMsg(e) });
+  }
+});
+
+// ============================================================
+// Helper: enviar alerta WhatsApp (placeholder)
+// ============================================================
+async function enviarAlertaWhatsApp(pago, capturaUrl) {
+  const payload = {
+    to: process.env.WHATSAPP_ADMIN_NUMBER || '',
+    body: `🚨 REVISIÓN MANUAL\nOrden: ${pago.token}\nDNI: ${pago.cliente_dni}\nCliente: ${pago.cliente_nombre}\nMonto: S/ ${pago.monto_unico}\nCódigo 3d: ${pago.codigo_cliente_3d || 'N/A'}\nCaptura: ${capturaUrl}`
+  };
+  console.log('📱 Alerta WhatsApp (pendiente de integrar):', payload);
+}
 
 export default router;

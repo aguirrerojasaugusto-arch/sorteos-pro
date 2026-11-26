@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "migrate": "node scripts/migrate-perfect.js",
+    "migrate:yape": "node scripts/migrate-yape-codigo3d.js"
   },
   "engines": {
     "node": ">=20.0.0"

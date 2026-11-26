@@ -32,12 +32,12 @@ export class SorteoService {
     return Number((Number(sorteo.precio_jugada) * cantidadJugadas * cantidadSorteos).toFixed(2));
   }
 
-  // ✅ NUEVO: Generar centavos aleatorios (0.01 a 0.99)
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   generarCentavosAleatorios() {
     return Math.floor(Math.random() * 99) + 1; // 1 a 99 centavos
   }
 
-  // ✅ NUEVO: Calcular monto Yape exacto (total + centavos aleatorios)
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   calcularMontoYapeExacto(totalBase) {
     const centavos = this.generarCentavosAleatorios();
     const montoExacto = Number((totalBase + centavos / 100).toFixed(2));
@@ -79,18 +79,15 @@ export class SorteoService {
     if (sorteo.activo !== undefined && Number(sorteo.activo) !== 1) {
       throw new Error('Este sorteo no está activo');
     }
-
     const jugadas = data.jugadas || [];
     if (!Array.isArray(jugadas) || jugadas.length === 0) {
       throw new Error('No se seleccionaron jugadas');
     }
-
     const modoAleatorio = data.modo_aleatorio === true;
     const cantidadSorteos = Number(data.cantidad_sorteos) || 1;
     if (cantidadSorteos < 1 || cantidadSorteos > 100) {
       throw new Error('Cantidad de sorteos inválida (1-100)');
     }
-
     const validator = new TicketValidator(sorteo);
     if (modoAleatorio) {
       if (jugadas.length > 100) throw new Error('Cantidad de tickets inválida (1-100)');
@@ -98,34 +95,27 @@ export class SorteoService {
     } else {
       validator.validarJugadas(jugadas);
     }
-
     validator.validarBoliyapa(data.boliyapa_numero != null ? Number(data.boliyapa_numero) : null);
     if (data.cliente_dni && String(data.cliente_dni).trim() !== '') {
       validator.validarTitular(data.cliente_nombre, data.cliente_dni);
     }
-
     const totalTickets = jugadas.length * cantidadSorteos;
     if (totalTickets < 1) throw new Error('Total de tickets inválido');
 
-    // ✅ Precio server-side.
     const total_pagado = this.calcularPrecioServidor(sorteo, jugadas.length, cantidadSorteos);
     if (!Number.isFinite(total_pagado) || total_pagado <= 0) {
       throw new Error('No se pudo calcular el monto a pagar');
     }
 
     // ==========================================
-    // ✅ FIX CRÍTICO: Hash del comprobante (Compatible Local + Cloudinary)
+    // Hash del comprobante
     // ==========================================
     let comprobanteHash = null;
     if (data.comprobante_file && data.comprobante_file.path) {
       const ruta = data.comprobante_file.path;
-      
       if (/^https?:\/\//i.test(ruta)) {
-        // ✅ FLUJO CLOUDINARY (Producción): la URL ya es única por archivo.
-        // No hay archivo en disco, así que usamos un hash de la URL como identificador único.
         comprobanteHash = crypto.createHash('sha256').update(String(ruta)).digest('hex');
       } else {
-        // ✅ FLUJO LOCAL (Desarrollo/SQLite): leer el archivo real para hash por contenido.
         try {
           const buf = await fs.readFile(ruta);
           comprobanteHash = crypto.createHash('sha256').update(buf).digest('hex');
@@ -140,23 +130,14 @@ export class SorteoService {
     const tx = await this.db.transaction('write');
     try {
       if (data.usuario_id) {
-        await this.walletService.pagar(
-          data.usuario_id, total_pagado,
-          `Compra de ${totalTickets} ticket(s)`, tx
-        );
+        await this.walletService.pagar(data.usuario_id, total_pagado, `Compra de ${totalTickets} ticket(s)`, tx);
       }
-
       if (comprobanteHash) {
         try {
           await tx.execute({
             sql: `INSERT INTO comprobantes (comprobante_hash, usuario_id, cliente_dni, monto_total)
                   VALUES (?, ?, ?, ?)`,
-            args: [
-              comprobanteHash,
-              data.usuario_id || null,
-              String(data.cliente_dni || '').trim() || null,
-              total_pagado
-            ]
+            args: [comprobanteHash, data.usuario_id || null, String(data.cliente_dni || '').trim() || null, total_pagado]
           });
         } catch (e) {
           if (esTablaInexistente(e)) {
@@ -168,10 +149,8 @@ export class SorteoService {
           }
         }
       }
-
       const precioPorTicket = Number((total_pagado / totalTickets).toFixed(2));
       const ticketsCreados = [];
-
       for (const jugada of jugadas) {
         for (let i = 0; i < cantidadSorteos; i++) {
           const template = {
@@ -192,13 +171,10 @@ export class SorteoService {
           ticketsCreados.push(await this.insertarTicketConRetry(tx, template));
         }
       }
-
       await tx.commit();
       return { tickets: ticketsCreados, total_pagado };
     } catch (e) {
       await tx.rollback().catch(err => console.error('Error en rollback:', err));
-      
-      // ✅ FIX: Solo intentar borrar si es un archivo local, NO una URL de Cloudinary
       if (comprobanteHash && data.comprobante_file?.path && !/^https?:\/\//i.test(data.comprobante_file.path)) {
         await fs.unlink(data.comprobante_file.path).catch(() => {});
       }
@@ -206,51 +182,41 @@ export class SorteoService {
     }
   }
 
-  // ✅ NUEVO: Método para compra con flujo Yape (centavos mágicos)
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   async comprarConYape(data) {
-    // ========== 1) Validaciones ==========
     const sorteo = await this.appRepo.getSorteoById(data.sorteo_id);
     if (!sorteo) throw new Error('Sorteo no encontrado');
     if (sorteo.activo !== undefined && Number(sorteo.activo) !== 1) {
       throw new Error('Este sorteo no está activo');
     }
-
     const jugadas = data.jugadas || [];
     if (!Array.isArray(jugadas) || jugadas.length === 0) {
       throw new Error('No se seleccionaron jugadas');
     }
-
     const cantidadSorteos = Number(data.cantidad_sorteos) || 1;
     if (cantidadSorteos < 1 || cantidadSorteos > 100) {
       throw new Error('Cantidad de sorteos inválida (1-100)');
     }
-
     const validator = new TicketValidator(sorteo);
     if (jugadas.length > 100) throw new Error('Cantidad de tickets inválida (1-100)');
     for (const j of jugadas) validator.validarJugadaIndividual(j);
-
     if (data.cliente_dni && String(data.cliente_dni).trim() !== '') {
       validator.validarTitular(data.cliente_nombre, data.cliente_dni);
     }
-
     const totalTickets = jugadas.length * cantidadSorteos;
     if (totalTickets < 1) throw new Error('Total de tickets inválido');
 
-    // ✅ Calcular precio base
     const totalBase = this.calcularPrecioServidor(sorteo, jugadas.length, cantidadSorteos);
     if (!Number.isFinite(totalBase) || totalBase <= 0) {
       throw new Error('No se pudo calcular el monto a pagar');
     }
 
-    // ✅ NUEVO: Generar monto Yape exacto con centavos aleatorios
     const { montoExacto: monto_yape_exacto, centavos } = this.calcularMontoYapeExacto(totalBase);
 
-    // ========== 2) Transacción atómica ==========
     const tx = await this.db.transaction('write');
     try {
       const precioPorTicket = Number((totalBase / totalTickets).toFixed(2));
       const ticketsCreados = [];
-
       for (const jugada of jugadas) {
         for (let i = 0; i < cantidadSorteos; i++) {
           const template = {
@@ -267,7 +233,6 @@ export class SorteoService {
             total_pagado: precioPorTicket,
             comprobante_url: null,
             comprobante_hash: null,
-            // ✅ NUEVOS CAMPOS para flujo Yape
             monto_yape_exacto: monto_yape_exacto,
             estado_pago: 'pendiente',
             captura_yape_url: null,
@@ -277,7 +242,6 @@ export class SorteoService {
           ticketsCreados.push(await this.insertarTicketConRetry(tx, template));
         }
       }
-
       await tx.commit();
       return { 
         tickets: ticketsCreados, 
@@ -291,31 +255,66 @@ export class SorteoService {
     }
   }
 
-  // ✅ NUEVO: Validar pago Yape desde webhook
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   async validarPagoYape(montoRecibido, smsBody, codigoOperacion) {
     const ticket = await this.appRepo.getTicketPendienteByMontoYape(montoRecibido);
     if (!ticket) {
-      // Registrar log de webhook fallido
       await this.appRepo.logYapeWebhook(montoRecibido, smsBody, null, 'no_encontrado');
-      return { 
-        success: false, 
-        message: `No hay ticket pendiente con monto S/ ${montoRecibido.toFixed(2)}` 
+      return {
+        success: false,
+        message: `No hay ticket pendiente con monto S/ ${montoRecibido.toFixed(2)}`
       };
     }
-
-    // Actualizar ticket como validado
     await this.appRepo.actualizarEstadoPago(ticket.id, 'validado', {
       sms_codigo_operacion: codigoOperacion,
       webhook_recibido_at: new Date().toISOString()
     });
-
-    // Registrar log exitoso
     await this.appRepo.logYapeWebhook(montoRecibido, smsBody, ticket.id, 'validado');
-
     return {
       success: true,
       ticket: ticket,
       message: `Pago validado. Ticket #${ticket.codigo_ticket}`
     };
+  }
+
+  // ✅ NUEVO: Validar un pago pendiente (usado por webhook SMS y aprobación manual)
+  async validarPagoPendiente(row, smsTexto, codigoOperacion) {
+    let jugadas = [];
+    try { jugadas = JSON.parse(row.jugadas_json || '[]'); } catch { jugadas = []; }
+    if (!Array.isArray(jugadas) || jugadas.length === 0) {
+      throw new Error('El pago pendiente no tiene jugadas guardadas');
+    }
+
+    const resultado = await this.comprar({
+      sorteo_id: row.sorteo_id,
+      cliente_nombre: row.cliente_nombre,
+      cliente_dni: row.cliente_dni,
+      telefono: row.cliente_telefono,
+      departamento: row.cliente_departamento,
+      jugadas,
+      cantidad_sorteos: Number(row.cantidad_sorteos) || 1,
+      si_o_si: !!row.si_o_si,
+      boliyapa_numero: row.boliyapa_numero || null,
+      comprobante_url: row.comprobante_url || row.captura_url || null,
+      comprobante_hash: null,
+      modo_aleatorio: true,
+      total_pagado: row.monto_unico
+    });
+
+    const ticketsGenerados = Array.isArray(resultado?.tickets) ? resultado.tickets : [];
+    await this.db.execute({
+      sql: `UPDATE pagos_pendientes
+            SET estado='validado',
+                validado_en=datetime('now'),
+                sms_texto=?,
+                sms_monto=?,
+                sms_codigo_operacion=?,
+                tickets_generados_json=?
+            WHERE id=?`,
+      args: [smsTexto, row.monto_unico, codigoOperacion, JSON.stringify(ticketsGenerados), row.id]
+    });
+
+    console.log(`✅ Pago #${row.id} validado → DNI ${row.cliente_dni} → S/ ${row.monto_unico} → ${ticketsGenerados.length} ticket(s)`);
+    return { tickets: ticketsGenerados, pago_id: row.id };
   }
 }

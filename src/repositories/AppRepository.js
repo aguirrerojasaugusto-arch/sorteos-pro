@@ -104,7 +104,6 @@ export class AppRepository {
       jugadas_json: data.jugadas_json ?? '[]',
       si_o_si: data.si_o_si ?? 0,
       boliyapa_numero: data.boliyapa_numero ?? null,
-      // ✅ NUEVOS CAMPOS para flujo Yape
       monto_yape_exacto: data.monto_yape_exacto ?? null,
       estado_pago: data.estado_pago ?? 'pendiente',
       captura_yape_url: data.captura_yape_url ?? null,
@@ -122,7 +121,7 @@ export class AppRepository {
       } else if (col.notnull === 1 && (col.dflt_value === null || col.dflt_value === undefined)) {
         const t = (col.type || '').toUpperCase();
         const fallback = t.includes('INT') ? 0 : t.includes('REAL') ? 0.0 : '';
-        console.warn(`   ⚠️  Columna NOT NULL desconocida "${col.name}" → fallback ${JSON.stringify(fallback)}`);
+        console.warn(`⚠️ Columna NOT NULL desconocida "${col.name}" → fallback ${JSON.stringify(fallback)}`);
         insertCols.push(col.name);
         args.push(fallback);
       }
@@ -176,26 +175,45 @@ export class AppRepository {
     return result.rows;
   }
 
-  // ✅ NUEVO: Buscar ticket pendiente por monto_yape_exacto
+  // ✅ NUEVO: Buscar pago pendiente VERIFICANDO por monto y código 3d (Escenario B)
+  async getPagoPendienteVerificando(monto, codigo3d) {
+    const r = await this._db.execute({
+      sql: `SELECT * FROM pagos_pendientes
+            WHERE monto_unico = ? AND codigo_cliente_3d = ?
+              AND estado_verificacion = 'VERIFICANDO'
+              AND estado IN ('pendiente','verificando','comprobante_subido')
+              AND expira_en > datetime('now')
+            ORDER BY creado_en DESC LIMIT 1`,
+      args: [monto, codigo3d]
+    });
+    return r.rows[0] || null;
+  }
+
+  // ✅ NUEVO: Obtener pagos en revisión manual (para Panel Admin)
+  async getPagosRevisionManual() {
+    const r = await this._db.execute({
+      sql: `SELECT * FROM pagos_pendientes
+            WHERE estado = 'revision_manual'
+            ORDER BY creado_en DESC`
+    });
+    return r.rows;
+  }
+
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   async getTicketPendienteByMontoYape(montoExacto, exec = null) {
     const e = exec || this._db;
     const result = await e.execute({
-      sql: `SELECT * FROM tickets 
-            WHERE monto_yape_exacto = ? 
-            AND estado_pago = 'pendiente' 
-            ORDER BY creado_en ASC 
-            LIMIT 1`,
+      sql: `SELECT * FROM tickets WHERE monto_yape_exacto = ? AND estado_pago = 'pendiente' ORDER BY creado_en ASC LIMIT 1`,
       args: [montoExacto]
     });
     return result.rows[0] || null;
   }
 
-  // ✅ NUEVO: Actualizar estado de pago del ticket
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
   async actualizarEstadoPago(ticketId, estado, datos = {}, exec = null) {
     const e = exec || this._db;
     const updates = ['estado_pago = ?'];
     const args = [estado];
-    
     if (datos.captura_yape_url) {
       updates.push('captura_yape_url = ?');
       args.push(datos.captura_yape_url);
@@ -208,21 +226,14 @@ export class AppRepository {
       updates.push('webhook_recibido_at = ?');
       args.push(datos.webhook_recibido_at);
     }
-    
     args.push(ticketId);
-    
     const sql = `UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`;
     await e.execute({ sql, args });
   }
 
-  // ✅ NUEVO: Obtener tickets de una compra (por DNI + sorteo + fecha reciente)
   async getTicketsByCompra(clienteDni, sorteoId, minutos = 15) {
     const result = await this._db.execute({
-      sql: `SELECT * FROM tickets 
-            WHERE cliente_dni = ? 
-            AND sorteo_id = ? 
-            AND creado_en >= datetime('now', '-${minutos} minutes')
-            ORDER BY id DESC`,
+      sql: `SELECT * FROM tickets WHERE cliente_dni = ? AND sorteo_id = ? AND creado_en >= datetime('now', '-${minutos} minutes') ORDER BY id DESC`,
       args: [clienteDni, sorteoId]
     });
     return result.rows;
@@ -307,22 +318,17 @@ export class AppRepository {
     return result.rows;
   }
 
-  // ✅ NUEVO: Registrar log de webhook
   async logYapeWebhook(montoRecibido, smsBody, ticketId, estado) {
     const result = await this._db.execute({
-      sql: `INSERT INTO yape_webhook_logs (monto_recibido, sms_body, ticket_id, estado) 
-            VALUES (?, ?, ?, ?) RETURNING *`,
+      sql: `INSERT INTO yape_webhook_logs (monto_recibido, sms_body, ticket_id, estado) VALUES (?, ?, ?, ?) RETURNING *`,
       args: [montoRecibido, smsBody, ticketId, estado]
     });
     return result.rows[0];
   }
 
-  // ✅ NUEVO: Limpiar tickets expirados (pendientes > 15 min)
   async limpiarTicketsExpirados(minutos = 15) {
     const result = await this._db.execute({
-      sql: `DELETE FROM tickets 
-            WHERE estado_pago = 'pendiente' 
-            AND creado_en < datetime('now', '-${minutos} minutes')`,
+      sql: `DELETE FROM tickets WHERE estado_pago = 'pendiente' AND creado_en < datetime('now', '-${minutos} minutes')`,
       args: []
     });
     return result.rows.length;

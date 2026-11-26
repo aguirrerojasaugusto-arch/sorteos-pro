@@ -25,7 +25,6 @@ export async function comprarTickets(e) {
   const celular = document.getElementById('inp-celular').value;
   const sorteoIdVal = document.getElementById('compra-sorteo-id').value;
   const cantidad = document.getElementById('inp-cantidad').value;
-
   const comprobanteInput = document.getElementById('inp-comprobante');
   let file = null;
   if (comprobanteInput.files.length > 0) {
@@ -50,7 +49,7 @@ export async function comprarTickets(e) {
 
   try {
     // ============================================================
-    // PASO 1: Crear pago pendiente (JSON) → genera monto ÚNICO con centavos
+    // PASO 1: Crear pago pendiente → genera monto EXACTO (sin centavos aleatorios)
     // ============================================================
     console.log('📤 Paso 1: creando pago pendiente...');
     const resPendiente = await fetch('/api/public/pago-pendiente', {
@@ -66,21 +65,17 @@ export async function comprarTickets(e) {
         cantidad_sorteos: 1
       })
     });
-
     if (!resPendiente.ok) {
       const err = await resPendiente.json().catch(() => ({}));
       mostrarErrorComprobante('❌ ' + (err.error || 'No se pudo iniciar el pago.'));
       btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
     }
-
     const data = await resPendiente.json();
     console.log('🎫 Pago pendiente creado:', data);
-
     const { token, monto_total, yape_numero, yape_titular, expira_en, cantidad_tickets } = data;
 
     // ============================================================
-    // PASO 2: Subir comprobante (evidencia). Si falla, NO abortamos:
-    //         el webhook valida por MONTO, la captura es opcional.
+    // PASO 2: Subir comprobante (evidencia). Si falla, NO abortamos.
     // ============================================================
     try {
       console.log('📤 Paso 2: subiendo comprobante...');
@@ -97,14 +92,12 @@ export async function comprarTickets(e) {
     }
 
     // ============================================================
-    // PASO 3: Mostrar pantalla de validación con el monto EXACTO
-    //         y arrancar el polling que espera el SMS de MacroDroid
+    // PASO 3: Mostrar pantalla de validación con monto EXACTO + campo de 3 dígitos
     // ============================================================
     document.getElementById('form-compra').classList.add('hidden');
     document.getElementById('resultado-compra').classList.add('hidden');
     document.getElementById('validacion-pago').classList.remove('hidden');
 
-    // Llenar datos del pago único (con guardas para no romper si falta algún id)
     const elTotal = document.getElementById('val-total');
     if (elTotal) elTotal.textContent = `S/ ${Number(monto_total).toFixed(2)}`;
     const elNum = document.getElementById('pago-numero');
@@ -112,12 +105,10 @@ export async function comprarTickets(e) {
     const elNom = document.getElementById('pago-nombre');
     if (elNom) elNom.textContent = yape_titular || 'Artesanía Mariposita';
 
-    // Guardar contexto para el resumen final
     state.compraActualId = token;
     state.compraContexto = { monto_total, cantidad_tickets, expira_en, nombres, apellidos, dni };
 
     iniciarPolling(token, Number(monto_total));
-
   } catch (error) {
     console.error('Error de conexión:', error);
     alert('Error de conexión con el servidor.');
