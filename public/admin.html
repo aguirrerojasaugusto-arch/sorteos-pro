@@ -22,7 +22,7 @@
     <!-- SIDEBAR -->
     <aside id="sidebar" class="sidebar">
       <div class="sidebar-header">
-        <img id="sidebar-logo" src="" alt="Logo" style="display:none;" />
+        <img id="sidebar-logo" class="sidebar-logo-img" src="" alt="Logo" style="display:none;" />
         <h2 id="sidebar-brand">🎰 Sorteos Pro</h2>
         <button class="sidebar-close-btn" onclick="cerrarSidebar()">✕</button>
       </div>
@@ -44,7 +44,6 @@
       </div>
     </aside>
 
-    <!-- OVERLAY para móvil -->
     <div id="sidebar-overlay" class="sidebar-overlay" onclick="cerrarSidebar()"></div>
 
     <!-- MAIN CONTENT -->
@@ -55,7 +54,7 @@
       </header>
 
       <div class="content-area">
-        <!-- VISTA: CONFIGURACIÓN (sin Carrusel/Banners/Promos) -->
+        <!-- VISTA: CONFIGURACIÓN -->
         <section id="view-config" class="section-view active">
           <div class="card">
             <h2>🖼️ Logo de la Marca</h2>
@@ -83,101 +82,30 @@
 
             <div class="card">
               <h2>📞 Contacto y Redes Sociales</h2>
-              <div class="form-group">
-                <label>Teléfono de Contacto</label>
-                <input type="text" id="config-telefono" />
-              </div>
-              <div class="form-group">
-                <label>Dirección de la Empresa</label>
-                <input type="text" id="config-direccion" />
-              </div>
-              <div class="form-group">
-                <label>Link de Facebook</label>
-                <input type="text" id="config-facebook" />
-              </div>
-              <div class="form-group">
-                <label>Link de YouTube</label>
-                <input type="text" id="config-youtube" />
-              </div>
-              <div class="form-group">
-                <label>Link de TikTok</label>
-                <input type="text" id="config-tiktok" />
-              </div>
+              <div class="form-group"><label>Teléfono de Contacto</label><input type="text" id="config-telefono" /></div>
+              <div class="form-group"><label>Dirección de la Empresa</label><input type="text" id="config-direccion" /></div>
+              <div class="form-group"><label>Link de Facebook</label><input type="text" id="config-facebook" /></div>
+              <div class="form-group"><label>Link de YouTube</label><input type="text" id="config-youtube" /></div>
+              <div class="form-group"><label>Link de TikTok</label><input type="text" id="config-tiktok" /></div>
               <button class="btn-save btn-full" onclick="guardarConfigGlobal()">💾 Guardar Contacto y Redes</button>
             </div>
           </div>
 
           <div class="card full-width-card">
             <h2>🎱 Logos de las Bolas</h2>
-            <div class="grid-bolas">
-              <div class="upload-slot" id="slot-bola-1">
-                <div class="file-input-wrapper">
-                  <label>Bola 1</label>
-                  <img id="preview-bola-1" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(1, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-2">
-                <div class="file-input-wrapper">
-                  <label>Bola 2</label>
-                  <img id="preview-bola-2" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(2, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-3">
-                <div class="file-input-wrapper">
-                  <label>Bola 3</label>
-                  <img id="preview-bola-3" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(3, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-4">
-                <div class="file-input-wrapper">
-                  <label>Bola 4</label>
-                  <img id="preview-bola-4" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(4, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-5">
-                <div class="file-input-wrapper">
-                  <label>Bola 5</label>
-                  <img id="preview-bola-5" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(5, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-6">
-                <div class="file-input-wrapper">
-                  <label>Bola 6</label>
-                  <img id="preview-bola-6" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(6, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-7">
-                <div class="file-input-wrapper">
-                  <label>Bola 7</label>
-                  <img id="preview-bola-7" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(7, this)" />
-                </div>
-              </div>
-              <div class="upload-slot" id="slot-bola-8">
-                <div class="file-input-wrapper">
-                  <label>Bola 8</label>
-                  <img id="preview-bola-8" class="preview-img-dinamica" />
-                  <input type="file" accept="image/*" onchange="subirBola(8, this)" />
-                </div>
-              </div>
-            </div>
+            <div class="grid-bolas" id="bolas-container"></div>
           </div>
         </section>
 
-        <!-- ✅ VISTA: BANNERS Y PROMOS (con Carrusel, Banners y Promos movidos aquí) -->
+        <!-- VISTA: BANNERS Y PROMOS (slots generados dinámicamente) -->
         <section id="view-banners" class="section-view">
           <div class="card">
             <h2>🎠 Imágenes del Carrusel Principal</h2>
-            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Sube las imágenes que aparecerán en el carrusel principal de la página de inicio.</p>
+            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Sube las imágenes que aparecerán en el carrusel principal.</p>
             <div class="grid-carrusel" id="carrusel-container"></div>
             <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
               <button class="btn-save" onclick="guardarCarrusel()">💾 Guardar Carrusel</button>
+              <button class="btn-add-promo" onclick="agregarSlotCarrusel()">➕ Agregar Imagen</button>
             </div>
           </div>
 
@@ -187,16 +115,17 @@
             <div class="grid-carrusel" id="banners-container"></div>
             <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
               <button class="btn-save" onclick="guardarBanners()">💾 Guardar Banners</button>
+              <button class="btn-add-promo" onclick="agregarSlotBanner()">➕ Agregar Banner</button>
             </div>
           </div>
 
           <div class="card">
             <h2>📢 Promociones Laterales Derechas</h2>
-            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Agrega todas las promociones que necesites. Puedes añadir cuantas quieras.</p>
+            <p class="upload-hint" style="text-align:left; margin-bottom:1rem;">Agrega todas las promociones que necesites.</p>
             <div class="grid-carrusel" id="promos-container"></div>
-            <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap; align-items:center;">
-              <button class="btn-save" onclick="guardarPromos()">💾 Guardar Promos</button>
-              <button class="btn-add-promo" onclick="agregarPromo()">➕ Agregar Promo</button>
+            <div style="margin-top:1rem; display:flex; gap:0.8rem; flex-wrap:wrap;">
+              <button class="btn-save" onclick="guardarPromosLaterales()">💾 Guardar Promos</button>
+              <button class="btn-add-promo" onclick="agregarSlotPromo()">➕ Agregar Promo</button>
             </div>
           </div>
         </section>
@@ -207,12 +136,8 @@
             <h2>👥 Lista de Usuarios Registrados</h2>
             <div class="table-wrapper">
               <table>
-                <thead>
-                  <tr><th>ID</th><th>Nombre</th><th>Email</th><th>DNI</th><th>Saldo</th></tr>
-                </thead>
-                <tbody id="tbody-usuarios">
-                  <tr><td colspan="5">Cargando...</td></tr>
-                </tbody>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>DNI</th><th>Saldo</th></tr></thead>
+                <tbody id="tbody-usuarios"><tr><td colspan="5">Cargando...</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -225,12 +150,8 @@
             <button class="btn-save mb-1" onclick="abrirModalSorteo(null)">+ Crear Nuevo Sorteo</button>
             <div class="table-wrapper">
               <table>
-                <thead>
-                  <tr><th>ID</th><th>Nombre</th><th>Premio</th><th>Precio</th><th>Fecha Límite</th><th>Estado</th><th>Acciones</th></tr>
-                </thead>
-                <tbody id="tbody-sorteos">
-                  <tr><td colspan="7">Cargando...</td></tr>
-                </tbody>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Premio</th><th>Precio</th><th>Fecha Límite</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-sorteos"><tr><td colspan="7">Cargando...</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -243,69 +164,35 @@
               <h2>🎫 Venta de Ticket Presencial</h2>
               <form id="form-venta-presencial" onsubmit="emitirTicketPresencial(event)">
                 <div class="form-row-inline">
-                  <div class="form-group">
-                    <label>Sorteo</label>
-                    <select id="venta-sorteo"></select>
-                  </div>
-                  <div class="form-group">
-                    <label>DNI del Cliente</label>
-                    <input type="text" id="venta-dni" maxlength="8" placeholder="12345678" />
-                    <span id="dni-status-admin" class="status-badge"></span>
-                  </div>
+                  <div class="form-group"><label>Sorteo</label><select id="venta-sorteo"></select></div>
+                  <div class="form-group"><label>DNI del Cliente</label><input type="text" id="venta-dni" maxlength="8" placeholder="12345678" /><span id="dni-status-admin" class="status-badge"></span></div>
                 </div>
                 <div class="form-row-inline">
-                  <div class="form-group">
-                    <label>Nombre del Cliente</label>
-                    <input type="text" id="venta-nombre" />
-                  </div>
-                  <div class="form-group">
-                    <label>Teléfono / Celular</label>
-                    <input type="text" id="venta-telefono" />
-                  </div>
+                  <div class="form-group"><label>Nombre del Cliente</label><input type="text" id="venta-nombre" /></div>
+                  <div class="form-group"><label>Teléfono / Celular</label><input type="text" id="venta-telefono" /></div>
                 </div>
                 <div class="form-row-inline">
                   <div class="form-group">
                     <label>Departamento</label>
                     <select id="venta-departamento">
                       <option value="">Selecciona un departamento...</option>
-                      <option>AMAZONAS</option><option>ANCASH</option><option>APURÍMAC</option>
-                      <option>AREQUIPA</option><option>AYACUCHO</option><option>CAJAMARCA</option>
-                      <option>CALLAO</option><option>CUSCO</option><option>HUANCAVELICA</option>
-                      <option>HUÁNUCO</option><option>ICA</option><option>JUNÍN</option>
-                      <option>LA LIBERTAD</option><option>LAMBAYEQUE</option><option>LIMA</option>
-                      <option>LORETO</option><option>MADRE DE DIOS</option><option>MOQUEGUA</option>
-                      <option>PASCO</option><option>PIURA</option><option>PUNO</option>
-                      <option>SAN MARTÍN</option><option>TACNA</option><option>TUMBES</option>
-                      <option>UCAYALI</option>
+                      <option>AMAZONAS</option><option>ANCASH</option><option>APURÍMAC</option><option>AREQUIPA</option><option>AYACUCHO</option><option>CAJAMARCA</option><option>CALLAO</option><option>CUSCO</option><option>HUANCAVELICA</option><option>HUÁNUCO</option><option>ICA</option><option>JUNÍN</option><option>LA LIBERTAD</option><option>LAMBAYEQUE</option><option>LIMA</option><option>LORETO</option><option>MADRE DE DIOS</option><option>MOQUEGUA</option><option>PASCO</option><option>PIURA</option><option>PUNO</option><option>SAN MARTÍN</option><option>TACNA</option><option>TUMBES</option><option>UCAYALI</option>
                     </select>
                   </div>
-                  <div class="form-group">
-                    <label>Cantidad de Tickets</label>
-                    <input type="number" id="venta-cantidad" min="1" max="50" value="1" />
-                  </div>
+                  <div class="form-group"><label>Cantidad de Tickets</label><input type="number" id="venta-cantidad" min="1" max="50" value="1" /></div>
                 </div>
-                <div class="form-group">
-                  <label>Total a Pagar</label>
-                  <input type="text" id="venta-total" class="input-total-venta" readonly />
-                </div>
+                <div class="form-group"><label>Total a Pagar</label><input type="text" id="venta-total" class="input-total-venta" readonly /></div>
                 <button type="submit" class="btn-save btn-full">✅ Emitir Ticket y Mostrar Comprobante</button>
               </form>
             </div>
 
             <div class="card">
               <h2>📋 Últimas Ventas</h2>
-              <div class="search-wrapper">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="search-ventas" class="custom-search" placeholder="Buscar por código, DNI, nombre..." oninput="filtrarVentas()" />
-              </div>
+              <div class="search-wrapper"><span class="search-icon">🔍</span><input type="text" id="search-ventas" class="custom-search" placeholder="Buscar por código, DNI, nombre..." oninput="filtrarVentas()" /></div>
               <div class="table-wrapper">
                 <table>
-                  <thead>
-                    <tr><th>Ticket</th><th>DNI</th><th>Nombres</th><th>Celular</th><th>Departamento</th><th>Fecha / Hora</th><th>Cant.</th><th>Monto</th><th>Comprobante</th></tr>
-                  </thead>
-                  <tbody id="tbody-ventas">
-                    <tr><td colspan="9">Cargando...</td></tr>
-                  </tbody>
+                  <thead><tr><th>Ticket</th><th>DNI</th><th>Nombres</th><th>Celular</th><th>Departamento</th><th>Fecha / Hora</th><th>Cant.</th><th>Monto</th><th>Comprobante</th></tr></thead>
+                  <tbody id="tbody-ventas"><tr><td colspan="9">Cargando...</td></tr></tbody>
                 </table>
               </div>
               <div class="pagination-container">
@@ -327,23 +214,8 @@
             <button class="btn-save mb-1" onclick="cargarRevisionManual()">🔄 Actualizar Lista</button>
             <div class="table-wrapper">
               <table>
-                <thead>
-                  <tr>
-                    <th>Token</th>
-                    <th>DNI</th>
-                    <th>Cliente</th>
-                    <th>Teléfono</th>
-                    <th>Sorteo</th>
-                    <th>Monto</th>
-                    <th>Código 3d</th>
-                    <th>Captura</th>
-                    <th>Fecha</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="tbody-revision-manual">
-                  <tr><td colspan="10">Cargando...</td></tr>
-                </tbody>
+                <thead><tr><th>Token</th><th>DNI</th><th>Cliente</th><th>Teléfono</th><th>Sorteo</th><th>Monto</th><th>Código 3d</th><th>Captura</th><th>Fecha</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-revision-manual"><tr><td colspan="10">Cargando...</td></tr></tbody>
               </table>
             </div>
             <div id="revision-empty" style="display:none; text-align:center; padding:2rem; color:#666;">
@@ -361,51 +233,17 @@
       <h2 id="modal-sorteo-titulo">Crear Sorteo</h2>
       <form id="form-sorteo" onsubmit="guardarSorteo(event)">
         <input type="hidden" id="sorteo-id" />
-        <div class="form-group">
-          <label>Nombre</label>
-          <input type="text" id="sorteo-nombre" required />
-        </div>
-        <div class="form-group">
-          <label>Subtítulo</label>
-          <input type="text" id="sorteo-subtitulo" />
-        </div>
-        <div class="form-group">
-          <label>Premio a Sortear</label>
-          <input type="text" id="sorteo-premio" />
-        </div>
-        <div class="form-group">
-          <label>Precio por Jugada</label>
-          <input type="number" id="sorteo-precio" step="0.01" required />
-        </div>
+        <div class="form-group"><label>Nombre</label><input type="text" id="sorteo-nombre" required /></div>
+        <div class="form-group"><label>Subtítulo</label><input type="text" id="sorteo-subtitulo" /></div>
+        <div class="form-group"><label>Premio a Sortear</label><input type="text" id="sorteo-premio" /></div>
+        <div class="form-group"><label>Precio por Jugada</label><input type="number" id="sorteo-precio" step="0.01" required /></div>
         <div class="form-row-inline">
-          <div class="form-group">
-            <label>Fecha del Sorteo</label>
-            <input type="date" id="sorteo-fecha" />
-          </div>
-          <div class="form-group">
-            <label>Hora del Sorteo</label>
-            <input type="time" id="sorteo-hora" />
-          </div>
+          <div class="form-group"><label>Fecha del Sorteo</label><input type="date" id="sorteo-fecha" /></div>
+          <div class="form-group"><label>Hora del Sorteo</label><input type="time" id="sorteo-hora" /></div>
         </div>
-        <div class="form-group">
-          <label>Imagen de la Tarjeta</label>
-          <input type="file" id="sorteo-imagen" accept="image/*" onchange="subirImagenSorteo('imagen')" />
-          <input type="text" id="sorteo-imagen-url" placeholder="URL de la imagen" />
-          <img id="preview-sorteo" class="preview-img-dinamica" />
-        </div>
-        <div class="form-group">
-          <label>Banner Lateral</label>
-          <input type="file" id="sorteo-banner" accept="image/*" onchange="subirImagenSorteo('banner')" />
-          <input type="text" id="sorteo-banner-url" placeholder="URL del banner" />
-          <img id="preview-banner" class="preview-img-dinamica" />
-        </div>
-        <div class="form-group">
-          <label>Estado</label>
-          <select id="sorteo-activo">
-            <option value="1">Activo</option>
-            <option value="0">Inactivo</option>
-          </select>
-        </div>
+        <div class="form-group"><label>Imagen de la Tarjeta</label><input type="file" id="sorteo-imagen" accept="image/*" onchange="subirImagenSorteo('imagen')" /><input type="text" id="sorteo-imagen-url" placeholder="URL de la imagen" /><img id="preview-sorteo" class="preview-img-dinamica" /></div>
+        <div class="form-group"><label>Banner Lateral</label><input type="file" id="sorteo-banner" accept="image/*" onchange="subirImagenSorteo('banner')" /><input type="text" id="sorteo-banner-url" placeholder="URL del banner" /><img id="preview-banner" class="preview-img-dinamica" /></div>
+        <div class="form-group"><label>Estado</label><select id="sorteo-activo"><option value="1">Activo</option><option value="0">Inactivo</option></select></div>
         <div class="modal-actions">
           <button type="submit" class="btn-save">💾 Guardar</button>
           <button type="button" class="btn-cancel" onclick="cerrarModalSorteo()">Cancelar</button>

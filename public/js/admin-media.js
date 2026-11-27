@@ -1,33 +1,58 @@
 // ============================================================
 // admin-media.js
-// Gestión completa de Carrusel, Banners y Promos Laterales
-// Los slots se generan dinámicamente dentro de los contenedores
+// Gestión de Carrusel, Banners y Promos Laterales
+// Genera slots dinámicamente al cargar
 // ============================================================
 
 let urlsCarrusel = [];
 let urlsBanners = [];
 let urlsPromos = [];
+let carruselCount = 0;
+let bannerCount = 0;
+let promoCount = 0;
 
-// ============================================================
-// INICIALIZACIÓN (llamada desde admin.js al cargar o cambiar vista)
-// ============================================================
 function initMedia() {
-  if (!globalData) return;
+  // Generar slots de bolas (8 fijos)
+  generarSlotsBolas();
 
-  // Carrusel
+  // Cargar y generar slots de carrusel
   urlsCarrusel = (globalData.carrusel || []).map(c => c.url_imagen || '');
+  carruselCount = urlsCarrusel.length;
   renderCarrusel();
 
-  // Banners
+  // Cargar y generar slots de banners
   urlsBanners = (globalData.banners || []).map(b => b.url_imagen || '');
+  bannerCount = urlsBanners.length;
   renderBanners();
 
-  // Promos
+  // Cargar y generar slots de promos
   urlsPromos = (globalData.promos_laterales || []).map(p => ({
     url_imagen: p.url_imagen || '',
     fecha: p.fecha || ''
   }));
+  promoCount = urlsPromos.length;
   renderPromos();
+}
+
+// ============================================================
+// BOLAS (8 slots fijos)
+// ============================================================
+function generarSlotsBolas() {
+  const container = document.getElementById('bolas-container');
+  if (!container || container.children.length > 0) return; // Ya generados
+
+  for (let i = 1; i <= 8; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'upload-slot';
+    slot.innerHTML = `
+      <div class="file-input-wrapper">
+        <label>Bola ${i}</label>
+        <img id="preview-bola-${i}" class="preview-img-dinamica" />
+        <input type="file" id="file-bola-${i}" accept="image/*" onchange="subirLogoBola(${i})" />
+      </div>
+    `;
+    container.appendChild(slot);
+  }
 }
 
 // ============================================================
@@ -42,8 +67,8 @@ function renderCarrusel() {
     container.appendChild(createCarruselSlot(i, url));
   });
 
-  // Slot vacío al final para agregar más
-  container.appendChild(createCarruselSlot(urlsCarrusel.length, ''));
+  // Slot vacío para agregar más
+  container.appendChild(createCarruselSlot(carruselCount++, ''));
 }
 
 function createCarruselSlot(index, url) {
@@ -53,41 +78,34 @@ function createCarruselSlot(index, url) {
   slot.innerHTML = `
     <div class="file-input-wrapper">
       <label>Imagen ${index + 1}</label>
-      <img class="preview-img-dinamica${url ? ' d-block' : ''}"
-           data-preview="carrusel-${index}"
-           data-url="${url || ''}"
-           src="${url || ''}" />
-      <input type="file" accept="image/*"
-             onchange="subirImagenCarrusel(${index}, this)" />
-      ${url ? `<button type="button" class="btn-eliminar-promo"
-                onclick="eliminarCarrusel(${index})">🗑️</button>` : ''}
+      <img id="preview-${index}" class="preview-img-dinamica${url ? ' d-block' : ''}" src="${url || ''}" />
+      <input type="file" id="file-${index}" accept="image/*" onchange="subirImagen(${index})" />
+      ${url ? `<button type="button" class="btn-eliminar-slot" onclick="eliminarCarrusel(${index})">🗑️</button>` : ''}
     </div>
   `;
   return slot;
 }
 
-async function subirImagenCarrusel(index, fileInput) {
-  const file = fileInput.files[0];
+async function subirImagen(index) {
+  const file = document.getElementById('file-' + index).files[0];
   if (!file) return;
-
   const formData = new FormData();
   formData.append('imagen', file);
-
   try {
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'x-admin-key': adminKey },
       body: formData
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return alert('❌ Error al subir imagen:\n' + (err.error || 'HTTP ' + res.status));
+    if (res.ok) {
+      const data = await res.json();
+      urlsCarrusel[index] = data.url;
+      renderCarrusel();
+    } else {
+      alert(`❌ Error al subir imagen:\n${await leerError(res)}`);
     }
-    const data = await res.json();
-    urlsCarrusel[index] = data.url;
-    renderCarrusel();
   } catch (e) {
-    alert('Error de conexión al subir imagen');
+    alert('Error de conexión con el servidor');
   }
 }
 
@@ -97,35 +115,28 @@ function eliminarCarrusel(index) {
   renderCarrusel();
 }
 
+function agregarSlotCarrusel() {
+  urlsCarrusel.push('');
+  renderCarrusel();
+}
+
 async function guardarCarrusel() {
-  const imagenes = urlsCarrusel
-    .filter(url => url && url.trim() !== '')
-    .map(url => ({ url_imagen: url.trim() }));
-
-  if (imagenes.length === 0) {
-    return alert('⚠️ No hay imágenes para guardar.');
-  }
-
+  const imagenes = urlsCarrusel.filter(url => url !== '').map(url => ({ url_imagen: url }));
   try {
     const res = await fetch('/api/admin/carrusel', {
       method: 'POST',
       headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ imagenes })
     });
-    if (res.ok) {
-      alert('✅ Carrusel actualizado correctamente');
-      if (typeof cargarDatosGlobales === 'function') await cargarDatosGlobales();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert('❌ Error al guardar carrusel:\n' + (err.error || 'HTTP ' + res.status));
-    }
+    if (res.ok) alert('✅ Carrusel actualizado');
+    else alert('❌ Error al guardar carrusel:\n' + await leerError(res));
   } catch (e) {
     alert('Error de conexión');
   }
 }
 
 // ============================================================
-// BANNERS IZQUIERDOS
+// BANNERS
 // ============================================================
 function renderBanners() {
   const container = document.getElementById('banners-container');
@@ -136,8 +147,8 @@ function renderBanners() {
     container.appendChild(createBannerSlot(i, url));
   });
 
-  // Slot vacío al final
-  container.appendChild(createBannerSlot(urlsBanners.length, ''));
+  // Slot vacío para agregar más
+  container.appendChild(createBannerSlot(bannerCount++, ''));
 }
 
 function createBannerSlot(index, url) {
@@ -147,41 +158,34 @@ function createBannerSlot(index, url) {
   slot.innerHTML = `
     <div class="file-input-wrapper">
       <label>Banner ${index + 1}</label>
-      <img class="preview-img-dinamica${url ? ' d-block' : ''}"
-           data-preview="banner-${index}"
-           data-url="${url || ''}"
-           src="${url || ''}" />
-      <input type="file" accept="image/*"
-             onchange="subirImagenBanner(${index}, this)" />
-      ${url ? `<button type="button" class="btn-eliminar-promo"
-                onclick="eliminarBanner(${index})">🗑️</button>` : ''}
+      <img id="preview-banner-${index + 1}" class="preview-img-dinamica${url ? ' d-block' : ''}" src="${url || ''}" />
+      <input type="file" id="file-banner-${index + 1}" accept="image/*" onchange="subirBanner(${index + 1})" />
+      ${url ? `<button type="button" class="btn-eliminar-slot" onclick="eliminarBanner(${index})">🗑️</button>` : ''}
     </div>
   `;
   return slot;
 }
 
-async function subirImagenBanner(index, fileInput) {
-  const file = fileInput.files[0];
+async function subirBanner(index) {
+  const file = document.getElementById('file-banner-' + index).files[0];
   if (!file) return;
-
   const formData = new FormData();
   formData.append('imagen', file);
-
   try {
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'x-admin-key': adminKey },
       body: formData
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return alert('❌ Error al subir banner:\n' + (err.error || 'HTTP ' + res.status));
+    if (res.ok) {
+      const data = await res.json();
+      urlsBanners[index - 1] = data.url;
+      renderBanners();
+    } else {
+      alert(`❌ Error al subir banner:\n${await leerError(res)}`);
     }
-    const data = await res.json();
-    urlsBanners[index] = data.url;
-    renderBanners();
   } catch (e) {
-    alert('Error de conexión al subir banner');
+    alert('Error de conexión');
   }
 }
 
@@ -191,35 +195,28 @@ function eliminarBanner(index) {
   renderBanners();
 }
 
+function agregarSlotBanner() {
+  urlsBanners.push('');
+  renderBanners();
+}
+
 async function guardarBanners() {
-  const banners = urlsBanners
-    .filter(url => url && url.trim() !== '')
-    .map(url => ({ url_imagen: url.trim() }));
-
-  if (banners.length === 0) {
-    return alert('⚠️ No hay banners para guardar.');
-  }
-
+  const banners = urlsBanners.filter(url => url !== '').map(url => ({ url_imagen: url }));
   try {
     const res = await fetch('/api/admin/banners', {
       method: 'POST',
       headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ banners })
     });
-    if (res.ok) {
-      alert('✅ Banners guardados correctamente');
-      if (typeof cargarDatosGlobales === 'function') await cargarDatosGlobales();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert('❌ Error al guardar banners:\n' + (err.error || 'HTTP ' + res.status));
-    }
+    if (res.ok) alert('✅ Banners guardados');
+    else alert('❌ Error al guardar banners:\n' + await leerError(res));
   } catch (e) {
     alert('Error de conexión');
   }
 }
 
 // ============================================================
-// PROMOS LATERALES (cantidad ilimitada con botón "➕ Agregar Promo")
+// PROMOS LATERALES
 // ============================================================
 function renderPromos() {
   const container = document.getElementById('promos-container');
@@ -238,85 +235,56 @@ function createPromoSlot(index, url, fecha) {
   slot.innerHTML = `
     <div class="file-input-wrapper">
       <label>Promo ${index + 1}</label>
-      <img class="preview-img-dinamica${url ? ' d-block' : ''}"
-           data-preview="promo-${index}"
-           data-url="${url || ''}"
-           src="${url || ''}" />
-      <input type="file" accept="image/*"
-             onchange="subirImagenPromo(${index}, this)" />
-      <input type="text" class="input-fecha-promo"
-             placeholder="Fecha (ej: 2026-12-31)"
-             data-fecha="promo-${index}"
-             value="${fecha || ''}" />
-      <button type="button" class="btn-eliminar-promo"
-              onclick="eliminarPromoSlot(this)">🗑️ Eliminar</button>
+      <img id="preview-promo-${index + 1}" class="preview-img-dinamica${url ? ' d-block' : ''}" src="${url || ''}" />
+      <input type="file" id="file-promo-${index + 1}" accept="image/*" onchange="subirPromo(${index + 1})" />
+      <input type="text" id="fecha-promo-${index + 1}" class="input-fecha-promo" placeholder="Fecha (ej: 2026-12-31)" value="${fecha || ''}" />
+      <button type="button" class="btn-eliminar-slot" onclick="eliminarPromo(${index})">🗑️ Eliminar</button>
     </div>
   `;
   return slot;
 }
 
-function agregarPromo() {
-  const container = document.getElementById('promos-container');
-  if (!container) return;
-
-  const index = urlsPromos.length;
-  urlsPromos.push({ url_imagen: '', fecha: '' });
-  container.appendChild(createPromoSlot(index, '', ''));
-}
-
-function eliminarPromoSlot(btn) {
-  if (!confirm('¿Eliminar esta promo?')) return;
-  const slot = btn.closest('.upload-slot');
-  if (!slot) return;
-  const index = parseInt(slot.dataset.index);
-  urlsPromos.splice(index, 1);
-  renderPromos(); // Re-render para actualizar índices
-}
-
-async function subirImagenPromo(index, fileInput) {
-  const file = fileInput.files[0];
+async function subirPromo(index) {
+  const file = document.getElementById('file-promo-' + index).files[0];
   if (!file) return;
-
   const formData = new FormData();
   formData.append('imagen', file);
-
   try {
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'x-admin-key': adminKey },
       body: formData
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return alert('❌ Error al subir imagen:\n' + (err.error || 'HTTP ' + res.status));
+    if (res.ok) {
+      const data = await res.json();
+      urlsPromos[index - 1].url_imagen = data.url;
+      renderPromos();
+    } else {
+      alert(`❌ Error al subir promo:\n${await leerError(res)}`);
     }
-    const data = await res.json();
-    if (urlsPromos[index]) {
-      urlsPromos[index].url_imagen = data.url;
-    }
-    renderPromos();
   } catch (e) {
-    alert('Error de conexión al subir imagen');
+    alert('Error de conexión');
   }
 }
 
-async function guardarPromos() {
-  const container = document.getElementById('promos-container');
-  if (!container) return;
+function eliminarPromo(index) {
+  if (!confirm('¿Eliminar esta promo?')) return;
+  urlsPromos.splice(index, 1);
+  renderPromos();
+}
 
-  const slots = container.querySelectorAll('.upload-slot');
-  const promos = [];
+function agregarSlotPromo() {
+  urlsPromos.push({ url_imagen: '', fecha: '' });
+  renderPromos();
+}
 
-  slots.forEach((slot) => {
-    const preview = slot.querySelector('.preview-img-dinamica');
-    const fechaInput = slot.querySelector('.input-fecha-promo');
-    const url = preview?.dataset.url || '';
-    const fecha = fechaInput?.value || '';
-
-    if (url && url.startsWith('http')) {
-      promos.push({ url_imagen: url, fecha });
-    }
-  });
+async function guardarPromosLaterales() {
+  const promos = urlsPromos
+    .filter(p => p.url_imagen && p.url_imagen !== '')
+    .map((p, i) => ({
+      url_imagen: p.url_imagen,
+      fecha: document.getElementById('fecha-promo-' + (i + 1))?.value || ''
+    }));
 
   if (promos.length === 0) {
     return alert('⚠️ No hay promos con imagen para guardar.');
@@ -328,17 +296,26 @@ async function guardarPromos() {
       headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ promos })
     });
-    if (res.ok) {
-      alert(`✅ ${promos.length} promo(s) guardada(s) correctamente`);
-      if (typeof cargarDatosGlobales === 'function') await cargarDatosGlobales();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert('❌ Error al guardar promos:\n' + (err.error || 'HTTP ' + res.status));
-    }
+    if (res.ok) alert('✅ Promos guardadas');
+    else alert('❌ Error al guardar promos:\n' + await leerError(res));
   } catch (e) {
     alert('Error de conexión');
   }
 }
 
-// Alias para compatibilidad con HTML original (si alguien lo usa)
-const guardarPromosLaterales = guardarPromos;
+// ============================================================
+// UTILS
+// ============================================================
+async function leerError(res) {
+  try {
+    const data = await res.json();
+    return data.error || `HTTP ${res.status}`;
+  } catch {
+    try {
+      const text = await res.text();
+      return text || `HTTP ${res.status} - ${res.statusText}`;
+    } catch {
+      return `HTTP ${res.status} - Error desconocido`;
+    }
+  }
+}
