@@ -20,9 +20,6 @@ body.kino-theme {
 
 .hidden { display: none !important; }
 
-/* =========================================
-   HEADER MINIMALISTA
-   ========================================= */
 .main-header {
   background: transparent;
   border-bottom: 1px solid var(--kino-divider);
@@ -101,9 +98,6 @@ body.kino-theme {
   filter: grayscale(0.2);
 }
 
-/* =========================================
-   HERO
-   ========================================= */
 .hero-kino {
   flex: 1;
   position: relative;
@@ -216,9 +210,6 @@ body.kino-theme {
 
 .bola-logo:hover { transform: translateY(-5px) scale(1.05); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
 
-/* =========================================
-   BUSCADOR DE TICKETS
-   ========================================= */
 .buscador-tickets-container {
   width: 100%;
   max-width: 560px;
@@ -294,9 +285,6 @@ body.kino-theme {
   transform: scale(0.97);
 }
 
-/* =========================================
-   MODAL FLOTANTE DE TICKETS
-   ========================================= */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -444,9 +432,6 @@ body.kino-theme {
   letter-spacing: 1px;
 }
 
-/* =========================================
-   CARRUSEL DE SORTEOS
-   ========================================= */
 .carrusel-sorteos-container {
   width: 100%;
   overflow: hidden;
@@ -483,9 +468,6 @@ body.kino-theme {
   animation: slideSorteos 20s infinite ease-in-out;
 }
 
-/* =========================================
-   FOOTER MINIMALISTA
-   ========================================= */
 .main-footer {
   background: transparent;
   border-top: 1px solid var(--kino-divider);
@@ -549,9 +531,6 @@ body.kino-theme {
   margin-top: 0.2rem;
 }
 
-/* =========================================
-   RESPONSIVE
-   ========================================= */
 @media (max-width: 768px) {
   .main-header, .main-footer { padding-left: 1.2rem; padding-right: 1.2rem; }
   .header-content {
