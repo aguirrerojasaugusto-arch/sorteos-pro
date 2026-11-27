@@ -1,5 +1,6 @@
 import { state } from './sorteos-state.js';
 import { formatearCodigo } from './sorteos-modal.js';
+import { validarComprobanteYapePlin } from './sorteos-comprobante.js';
 
 export function detenerPolling() {
   if (state.pollingTimer) {
@@ -29,7 +30,7 @@ function segundosRestantes(expiraEn) {
   return Math.max(0, Math.floor((t - Date.now()) / 1000));
 }
 
-// ✅ NUEVO: Enviar código de 3 dígitos al servidor
+// ✅ Enviar código de 3 dígitos al servidor
 async function enviarCodigo(token, codigo3d) {
   try {
     const res = await fetch(`/api/public/pago-pendiente/${token}/codigo`, {
@@ -47,7 +48,7 @@ async function enviarCodigo(token, codigo3d) {
   }
 }
 
-// ✅ NUEVO: Subir captura para revisión manual
+// ✅ Subir captura para revisión manual (OBLIGATORIA si falla validación)
 async function subirCaptura(token, file) {
   try {
     const fd = new FormData();
@@ -63,7 +64,7 @@ async function subirCaptura(token, file) {
   }
 }
 
-// ✅ NUEVO: Subir comprobante opcional (para control interno)
+// ✅ Subir comprobante opcional (control interno, NO bloquea)
 async function subirComprobanteOpcional(token, file) {
   try {
     const fd = new FormData();
@@ -91,10 +92,10 @@ export function iniciarPolling(token, montoTotal) {
   const estadoEl = ensureEstadoEl();
   if (estadoEl) estadoEl.textContent = '🔍 Esperando confirmación de pago...';
 
-  // ✅ Renderizar campo de código 3 dígitos si no existe
+  // Renderizar campo de código 3 dígitos
   renderizarCampoCodigo(token, montoTotal);
 
-  // ✅ NUEVO: Configurar botón de subida de comprobante opcional
+  // Configurar subida opcional de comprobante (control interno)
   configurarSubidaComprobante(token);
 
   let intentos = 0;
@@ -128,14 +129,12 @@ export function iniciarPolling(token, montoTotal) {
         return;
       }
 
-      // Actualizar máximo de intentos desde servidor
       if (data.max_intentos) maxIntentosCodigo = data.max_intentos;
 
-      // Actualizar contador de intentos en UI
       const elIntentos = document.getElementById('val-intentos');
       if (elIntentos) elIntentos.textContent = `Intentos: ${data.intentos_codigo || 0}/${maxIntentosCodigo}`;
 
-      // Mostrar botón de captura si ya alcanzó el máximo de intentos
+      // ✅ Si alcanzó el máximo de intentos → mostrar box de captura OBLIGATORIA
       if (data.permite_captura) {
         renderizarBotonCaptura(token);
       }
@@ -167,12 +166,11 @@ export function iniciarPolling(token, montoTotal) {
   }, 3000);
 }
 
-// ✅ NUEVO: Configurar botón de subida de comprobante opcional
+// ✅ Configurar botón de subida de comprobante OPCIONAL (control interno)
 function configurarSubidaComprobante(token) {
   const btn = document.getElementById('btn-subir-comprobante');
   const fileInput = document.getElementById('inp-comprobante-validacion');
   const statusEl = document.getElementById('comprobante-status');
-
   if (!btn || !fileInput) return;
 
   btn.addEventListener('click', async () => {
@@ -195,15 +193,12 @@ function configurarSubidaComprobante(token) {
 
     btn.disabled = true;
     btn.textContent = '⏳ Subiendo...';
-    if (statusEl) {
-      statusEl.textContent = '';
-      statusEl.style.color = '';
-    }
+    if (statusEl) { statusEl.textContent = ''; }
 
     const result = await subirComprobanteOpcional(token, file);
     if (result.ok) {
       if (statusEl) {
-        statusEl.textContent = '✅ Comprobante subido correctamente (opcional)';
+        statusEl.textContent = '✅ Comprobante subido (opcional, para control interno)';
         statusEl.style.color = '#059669';
       }
       btn.textContent = '✅ Subido';
@@ -287,7 +282,7 @@ function renderizarCampoCodigo(token, montoTotal) {
   });
 }
 
-// ✅ Renderiza botón para subir captura (plan de respaldo)
+// ✅ Renderiza botón de captura OBLIGATORIA (plan de respaldo)
 function renderizarBotonCaptura(token) {
   if (document.getElementById('box-captura-respaldo')) return;
   const cont = document.getElementById('validacion-pago');
@@ -297,41 +292,112 @@ function renderizarBotonCaptura(token) {
   box.id = 'box-captura-respaldo';
   box.style.cssText = 'margin: 20px 0; padding: 16px; background:#fef3c7; border: 2px solid #f59e0b; border-radius: 10px;';
   box.innerHTML = `
-    <h4 style="margin:0 0 10px 0; color:#92400e;">📸 ¿No se validó automáticamente?</h4>
-    <p style="margin:0 0 10px 0; font-size:14px; color:#78350f;">
-      Sube la captura de tu constancia Yape para revisión manual.
+    <h4 style="margin:0 0 10px 0; color:#92400e;">📸 Validación automática falló</h4>
+    <p style="margin:0 0 10px 0; font-size:14px; color:#78350f; font-weight:bold;">
+      ⚠️ OBLIGATORIO: Sube la captura de tu constancia Yape para revisión manual.
     </p>
-    <input type="file" id="inp-captura" accept="image/*" style="margin-bottom:10px;" />
-    <button id="btn-subir-captura" style="padding:10px 20px; background:#f59e0b; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
+    <p style="margin:0 0 10px 0; font-size:13px; color:#78350f;">
+      Un operador revisará tu pago y confirmará tus números antes de las 23:59.
+    </p>
+    <input type="file" id="inp-captura" accept="image/*" style="margin-bottom:10px; width:100%;" />
+    <button id="btn-subir-captura" disabled style="padding:10px 20px; background:#9ca3af; color:white; border:none; border-radius:8px; font-weight:bold; cursor:not-allowed; width:100%;">
       📤 Enviar captura
     </button>
-    <p id="val-msg-captura" style="margin:8px 0 0 0; font-size:13px; font-weight:bold;"></p>
+    <p id="val-msg-captura" style="margin:8px 0 0 0; font-size:13px; font-weight:bold; color:#dc2626;">
+      Selecciona una imagen para continuar
+    </p>
   `;
   cont.appendChild(box);
 
-  document.getElementById('btn-subir-captura').addEventListener('click', async () => {
-    const fileInput = document.getElementById('inp-captura');
-    if (!fileInput.files.length) {
-      document.getElementById('val-msg-captura').textContent = '⚠️ Selecciona una imagen';
-      document.getElementById('val-msg-captura').style.color = '#dc2626';
+  const fileInput = document.getElementById('inp-captura');
+  const btnCaptura = document.getElementById('btn-subir-captura');
+  const msgEl = document.getElementById('val-msg-captura');
+
+  // ✅ Validar archivo al seleccionarlo (habilita/deshabilita botón)
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      btnCaptura.disabled = true;
+      btnCaptura.style.background = '#9ca3af';
+      btnCaptura.style.cursor = 'not-allowed';
+      msgEl.textContent = 'Selecciona una imagen para continuar';
+      msgEl.style.color = '#dc2626';
       return;
     }
-    const btn = document.getElementById('btn-subir-captura');
-    btn.disabled = true;
-    btn.textContent = '⏳ Enviando...';
-    const msgEl = document.getElementById('val-msg-captura');
 
-    const result = await subirCaptura(token, fileInput.files[0]);
-    if (result.ok) {
-      msgEl.textContent = '✅ Captura enviada. En revisión manual.';
+    // Validar tamaño
+    if (file.size > 5 * 1024 * 1024) {
+      fileInput.value = '';
+      btnCaptura.disabled = true;
+      btnCaptura.style.background = '#9ca3af';
+      btnCaptura.style.cursor = 'not-allowed';
+      msgEl.textContent = '❌ El archivo supera los 5MB. Elige otro.';
+      msgEl.style.color = '#dc2626';
+      return;
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      fileInput.value = '';
+      btnCaptura.disabled = true;
+      btnCaptura.style.background = '#9ca3af';
+      btnCaptura.style.cursor = 'not-allowed';
+      msgEl.textContent = '❌ Solo se aceptan imágenes (JPG/PNG)';
+      msgEl.style.color = '#dc2626';
+      return;
+    }
+
+    // ✅ Validar que sea comprobante Yape/Plin (si el validador está disponible)
+    try {
+      const validacion = await validarComprobanteYapePlin(file);
+      if (validacion.error) {
+        msgEl.textContent = '⚠️ No se pudo leer la imagen. Puedes continuar igual.';
+        msgEl.style.color = '#f59e0b';
+      } else if (!validacion.esValido) {
+        msgEl.textContent = '⚠️ No parece un comprobante Yape/Plin. ¿Continuar?';
+        msgEl.style.color = '#f59e0b';
+      } else {
+        msgEl.textContent = '✅ Comprobante válido. Puedes enviarlo.';
+        msgEl.style.color = '#059669';
+      }
+    } catch (e) {
+      msgEl.textContent = '✅ Imagen seleccionada. Puedes enviarla.';
       msgEl.style.color = '#059669';
-      btn.style.display = 'none';
+    }
+
+    // ✅ Habilitar botón
+    btnCaptura.disabled = false;
+    btnCaptura.style.background = '#f59e0b';
+    btnCaptura.style.cursor = 'pointer';
+  });
+
+  // ✅ Envío de captura
+  btnCaptura.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      msgEl.textContent = '❌ Debes seleccionar un archivo';
+      msgEl.style.color = '#dc2626';
+      return;
+    }
+
+    btnCaptura.disabled = true;
+    btnCaptura.textContent = '⏳ Enviando...';
+    btnCaptura.style.cursor = 'not-allowed';
+
+    const result = await subirCaptura(token, file);
+    if (result.ok) {
+      msgEl.textContent = '✅ Captura enviada. En revisión manual. Recibirás confirmación por WhatsApp.';
+      msgEl.style.color = '#059669';
+      btnCaptura.textContent = '✅ Enviado';
       fileInput.disabled = true;
+      // Detener polling (ya no tiene sentido, el estado cambió a revision_manual)
+      // Pero lo dejamos activo para que muestre el estado actualizado
     } else {
       msgEl.textContent = `❌ ${result.error}`;
       msgEl.style.color = '#dc2626';
-      btn.disabled = false;
-      btn.textContent = '📤 Enviar captura';
+      btnCaptura.disabled = false;
+      btnCaptura.textContent = '📤 Enviar captura';
+      btnCaptura.style.cursor = 'pointer';
     }
   });
 }

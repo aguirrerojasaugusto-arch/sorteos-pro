@@ -117,44 +117,45 @@
       </form>
 
       <!-- PANTALLA DE VALIDACIÓN DE PAGO -->
-      <div id="validacion-pago" class="validacion-pago hidden">
-        <h3 class="validacion-titulo">⏳ Validando tu pago...</h3>
-        <p class="validacion-monto">
-          Transfiere exactamente <strong>S/ <span id="val-total">0.00</span></strong>
-          <br />al Yape <strong id="val-numero">993 897 647</strong>
-          <br />(<span id="val-nombre">Artesanía Mariposita</span>)
-        </p>
+<div id="validacion-pago" class="validacion-pago hidden">
+  <h3 class="validacion-titulo">⏳ Validando tu pago...</h3>
+  <p class="validacion-monto">
+    Transfiere exactamente <strong>S/ <span id="val-total">0.00</span></strong>
+    <br />al Yape <strong id="val-numero">993 897 647</strong>
+    <br />(<span id="val-nombre">Artesanía Mariposita</span>)
+  </p>
 
-        <!-- ✅ NUEVO: Instrucciones actualizadas (ya no habla de centavos) -->
-        <div class="validacion-instrucciones">
-          <p>⚠️ <strong>IMPORTANTE:</strong></p>
-          <ul>
-            <li>Yapea <strong>EXACTAMENTE</strong> el monto que aparece arriba</li>
-            <li>Ingresa los <strong>últimos 3 dígitos</strong> del código de operación de tu constancia Yape</li>
-            <li>La validación es automática en segundos</li>
-          </ul>
-        </div>
+  <div class="validacion-instrucciones">
+    <p>⚠️ <strong>IMPORTANTE:</strong></p>
+    <ul>
+      <li>Yapea <strong>EXACTAMENTE</strong> el monto que aparece arriba</li>
+      <li>Ingresa los <strong>últimos 3 dígitos</strong> del código de operación de tu constancia Yape</li>
+      <li>La validación es automática en segundos</li>
+    </ul>
+  </div>
 
-        <p class="validacion-info">
-          📱 Una vez yapeado, la validación es automática.<br />
-          No cierres esta ventana.
-        </p>
+  <p class="validacion-info">
+    📱 Una vez yapeado, la validación es automática.<br />
+    No cierres esta ventana.
+  </p>
 
-        <!-- ✅ NUEVO: Botón opcional para subir comprobante (para control interno) -->
-        <div class="comprobante-opcional">
-          <p>📸 <strong>Opcional:</strong> Sube tu comprobante de pago para control interno</p>
-          <input type="file" id="inp-comprobante-validacion" accept="image/*" />
-          <button type="button" id="btn-subir-comprobante" class="btn-subir-comprobante">📤 Subir Comprobante</button>
-          <p id="comprobante-status" class="comprobante-status"></p>
-        </div>
+  <!-- Comprobante OPCIONAL (solo control interno, no bloquea) -->
+  <div class="comprobante-opcional">
+    <p style="font-size:13px;">📸 <strong>Opcional:</strong> Sube tu comprobante para control interno</p>
+    <input type="file" id="inp-comprobante-validacion" accept="image/*" />
+    <button type="button" id="btn-subir-comprobante" class="btn-subir-comprobante">📤 Subir Comprobante</button>
+    <p id="comprobante-status" class="comprobante-status"></p>
+  </div>
 
-        <div class="validacion-tiempo">
-          <p>Tiempo restante: <strong id="val-tiempo">15:00</strong></p>
-        </div>
+  <div class="validacion-tiempo">
+    <p>Tiempo restante: <strong id="val-tiempo">15:00</strong></p>
+  </div>
 
-        <!-- ✅ El campo de 3 dígitos y el botón de captura de respaldo los genera JS dinámicamente -->
-        <p id="val-estado" class="validacion-estado">🔍 Buscando confirmación de pago...</p>
-      </div>
+  <p id="val-estado" class="validacion-estado">🔍 Buscando confirmación de pago...</p>
+
+  <!-- ✅ El box-codigo-3d y box-captura-respaldo se generan dinámicamente desde JS -->
+  <!-- Si la validación falla → aparece box-captura-respaldo con comprobante OBLIGATORIO -->
+</div>
 
       <!-- RESULTADO DE COMPRA -->
       <div id="resultado-compra" class="resultado-compra hidden"></div>
