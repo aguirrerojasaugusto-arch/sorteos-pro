@@ -14,16 +14,42 @@
     <h1 class="site-title">Juega y Gana</h1>
   </header>
 
-  <main class="main-content">
-    <h2 class="section-title">Sorteos Disponibles</h2>
-
-    <div class="carrusel-wrapper">
-      <div class="carrusel-container" id="carrusel-container">
-        <div class="carrusel-track" id="carrusel-track"></div>
+    <main class="main-container">
+    
+    <!-- COLUMNA IZQUIERDA: Banner y Sorteos -->
+    <div class="col-left">
+      
+      <!-- Contenedor del Banner (AQUÍ SE SOLUCIONA EL ERROR DEL BANNER) -->
+      <div class="banner-container">
+        <div class="banner-rotativo" id="banner-rotativo"></div>
       </div>
-      <button class="carrusel-btn prev" id="carrusel-prev">❮</button>
-      <button class="carrusel-btn next" id="carrusel-next">❯</button>
+
+      <h2 class="section-title">Sorteos Disponibles</h2>
+      
+      <!-- Contenedor de Sorteos (AQUÍ SE SOLUCIONA EL ERROR DE LAS TARJETAS) -->
+      <div class="carrusel-sorteos-wrapper">
+        <button class="arrow-btn-sorteos arrow-btn-sorteos-left" onclick="scrollSorteos(-1)">&#10094;</button>
+        
+        <!-- ESTA ES LA CLASE EXACTA QUE BUSCA EL JS -->
+        <div class="grid-sorteos" id="grid-sorteos"></div>
+        
+        <button class="arrow-btn-sorteos arrow-btn-sorteos-right" onclick="scrollSorteos(1)">&#10095;</button>
+      </div>
+
     </div>
+
+    <!-- COLUMNA DERECHA: Promociones -->
+    <div class="col-right">
+      <div class="promos-header">
+        <h3>Promociones</h3>
+      </div>
+      <div class="promos-viewport" id="promos-viewport">
+        <!-- Clase exacta para que el JS pinte las promos -->
+        <div class="promos-track" id="promos-track"></div>
+      </div>
+    </div>
+
+  </main>
 
     <aside class="promos-laterales" id="promos-laterales">
       <div class="promos-header">
