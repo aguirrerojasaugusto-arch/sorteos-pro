@@ -11,6 +11,7 @@ import { inicializarCompra, comprarTickets } from './modules/sorteos-compra.js';
 window.abrirModal = abrirModal;
 window.cerrarModal = cerrarModal;
 window.cambiarCantidad = cambiarCantidad;
+window.actualizarTotal = actualizarTotal; // <-- CORREGIDO: Faltaba esta línea
 window.scrollPromos = scrollPromos;
 window.scrollSorteos = scrollSorteos;
 window.comprarTickets = comprarTickets;
@@ -21,6 +22,7 @@ window.comprarTickets = comprarTickets;
 async function cargarDatos() {
   try {
     console.log('🔄 Cargando datos del backend...');
+    // Evitamos el caché con el timestamp
     const res = await fetch('/api/public/bootstrap?t=' + Date.now());
     const data = await res.json();
     console.log('📦 Datos recibidos:', data);
@@ -36,9 +38,17 @@ async function cargarDatos() {
         .filter(s => s.banner_lateral)
         .map(s => ({ url_imagen: s.banner_lateral }));
     }
+    
     console.log('🖼️ Banners a mostrar:', bannersA_Mostrar.length);
     console.log('📢 Promos recibidas:', data.promos_laterales?.length || 0);
 
+    // 🔍 VALIDACIÓN DE CONTENEDORES EN EL DOM
+    // Esto te ayudará a saber si falta un div en tu HTML
+    if (!document.querySelector('.banner-rotativo')) console.warn('⚠️ No se encontró el contenedor HTML: .banner-rotativo');
+    if (!document.querySelector('.promos-track')) console.warn('⚠️ No se encontró el contenedor HTML: .promos-track');
+    if (!document.querySelector('.grid-sorteos')) console.warn('⚠️ No se encontró el contenedor HTML: .grid-sorteos');
+
+    // Ejecutar renderizados
     inicializarBanner(bannersA_Mostrar);
     inicializarPromos(data.promos_laterales || []);
     renderizarTarjetas();
@@ -59,6 +69,7 @@ async function cargarDatos() {
 window.addEventListener('resize', () => {
   const viewport = document.getElementById('promos-viewport');
   if (viewport && viewport.querySelector('.promo-card')) ajustarPromos();
+  
   const ws = document.querySelector('.carrusel-sorteos-wrapper');
   if (ws && ws.querySelector('.card-sorteo')) {
     construirCintaSorteos();
@@ -68,4 +79,6 @@ window.addEventListener('resize', () => {
 /* ============================================================
    ✅ Iniciar aplicación
    ============================================================ */
-cargarDatos();
+document.addEventListener('DOMContentLoaded', () => {
+  cargarDatos();
+});
