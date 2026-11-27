@@ -63,6 +63,22 @@ async function subirCaptura(token, file) {
   }
 }
 
+// ✅ NUEVO: Subir comprobante opcional (para control interno)
+async function subirComprobanteOpcional(token, file) {
+  try {
+    const fd = new FormData();
+    fd.append('comprobante', file);
+    const res = await fetch(`/api/public/pago-pendiente/${token}/comprobante`, {
+      method: 'POST', body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data.error || 'Error al subir comprobante' };
+    return { ok: true, ...data };
+  } catch (e) {
+    return { ok: false, error: 'Error de conexión' };
+  }
+}
+
 export function iniciarPolling(token, montoTotal) {
   state.compraActualId = token;
   document.getElementById('form-compra').classList.add('hidden');
@@ -77,6 +93,9 @@ export function iniciarPolling(token, montoTotal) {
 
   // ✅ Renderizar campo de código 3 dígitos si no existe
   renderizarCampoCodigo(token, montoTotal);
+
+  // ✅ NUEVO: Configurar botón de subida de comprobante opcional
+  configurarSubidaComprobante(token);
 
   let intentos = 0;
   const maxIntentos = 300; // 300 * 3s = 15 min
@@ -148,7 +167,59 @@ export function iniciarPolling(token, montoTotal) {
   }, 3000);
 }
 
-// ✅ NUEVO: Renderiza el campo para ingresar los 3 dígitos
+// ✅ NUEVO: Configurar botón de subida de comprobante opcional
+function configurarSubidaComprobante(token) {
+  const btn = document.getElementById('btn-subir-comprobante');
+  const fileInput = document.getElementById('inp-comprobante-validacion');
+  const statusEl = document.getElementById('comprobante-status');
+
+  if (!btn || !fileInput) return;
+
+  btn.addEventListener('click', async () => {
+    if (!fileInput.files.length) {
+      if (statusEl) {
+        statusEl.textContent = '⚠️ Selecciona una imagen primero';
+        statusEl.style.color = '#dc2626';
+      }
+      return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      if (statusEl) {
+        statusEl.textContent = '❌ El archivo supera los 5MB';
+        statusEl.style.color = '#dc2626';
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Subiendo...';
+    if (statusEl) {
+      statusEl.textContent = '';
+      statusEl.style.color = '';
+    }
+
+    const result = await subirComprobanteOpcional(token, file);
+    if (result.ok) {
+      if (statusEl) {
+        statusEl.textContent = '✅ Comprobante subido correctamente (opcional)';
+        statusEl.style.color = '#059669';
+      }
+      btn.textContent = '✅ Subido';
+      fileInput.disabled = true;
+    } else {
+      if (statusEl) {
+        statusEl.textContent = `❌ ${result.error}`;
+        statusEl.style.color = '#dc2626';
+      }
+      btn.disabled = false;
+      btn.textContent = '📤 Subir Comprobante';
+    }
+  });
+}
+
+// ✅ Renderiza el campo para ingresar los 3 dígitos
 function renderizarCampoCodigo(token, montoTotal) {
   const cont = document.getElementById('validacion-pago');
   if (!cont) return;
@@ -216,7 +287,7 @@ function renderizarCampoCodigo(token, montoTotal) {
   });
 }
 
-// ✅ NUEVO: Renderiza botón para subir captura (plan de respaldo)
+// ✅ Renderiza botón para subir captura (plan de respaldo)
 function renderizarBotonCaptura(token) {
   if (document.getElementById('box-captura-respaldo')) return;
   const cont = document.getElementById('validacion-pago');

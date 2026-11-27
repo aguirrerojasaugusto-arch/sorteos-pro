@@ -25,27 +25,8 @@ export async function comprarTickets(e) {
   const celular = document.getElementById('inp-celular').value;
   const sorteoIdVal = document.getElementById('compra-sorteo-id').value;
   const cantidad = document.getElementById('inp-cantidad').value;
-  const comprobanteInput = document.getElementById('inp-comprobante');
-  let file = null;
-  if (comprobanteInput.files.length > 0) {
-    file = comprobanteInput.files[0];
-    if (file.size > 5 * 1024 * 1024) {
-      mostrarErrorComprobante('❌ El comprobante supera el máximo de 5MB.');
-      btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
-    }
-    const validacion = await validarComprobanteYapePlin(file);
-    if (validacion.error) {
-      mostrarErrorComprobante('❌ No se pudo leer la imagen. Sube un JPG o PNG válido.');
-      btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
-    }
-    if (!validacion.esValido) {
-      mostrarErrorComprobante('❌ Este no parece un comprobante de Yape o Plin.');
-      btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
-    }
-  } else {
-    mostrarErrorComprobante('❌ Debes subir un comprobante de pago.');
-    btn.textContent = 'Confirmar Compra'; btn.disabled = false; return;
-  }
+
+  // ✅ Comprobante ya NO es obligatorio aquí (se sube opcionalmente en la pantalla de validación)
 
   try {
     // ============================================================
@@ -74,22 +55,8 @@ export async function comprarTickets(e) {
     console.log('🎫 Pago pendiente creado:', data);
     const { token, monto_total, yape_numero, yape_titular, expira_en, cantidad_tickets } = data;
 
-    // ============================================================
-    // PASO 2: Subir comprobante (evidencia). Si falla, NO abortamos.
-    // ============================================================
-    try {
-      console.log('📤 Paso 2: subiendo comprobante...');
-      const fd = new FormData();
-      fd.append('comprobante', file);
-      const resComp = await fetch(`/api/public/pago-pendiente/${token}/comprobante`, {
-        method: 'POST', body: fd
-      });
-      if (!resComp.ok) {
-        console.warn('⚠️ Comprobante no subido (no bloquea la validación).');
-      }
-    } catch (e) {
-      console.warn('⚠️ Error al subir comprobante (continúa):', e);
-    }
+    // ✅ PASO 2 ELIMINADO: Ya no subimos comprobante aquí.
+    // El comprobante ahora es opcional y se sube desde la pantalla de validación.
 
     // ============================================================
     // PASO 3: Mostrar pantalla de validación con monto EXACTO + campo de 3 dígitos
@@ -108,6 +75,7 @@ export async function comprarTickets(e) {
     state.compraActualId = token;
     state.compraContexto = { monto_total, cantidad_tickets, expira_en, nombres, apellidos, dni };
 
+    // ✅ Iniciar polling (ahora también maneja el campo de 3 dígitos y subida de comprobante)
     iniciarPolling(token, Number(monto_total));
   } catch (error) {
     console.error('Error de conexión:', error);
