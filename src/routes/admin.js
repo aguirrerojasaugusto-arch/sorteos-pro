@@ -141,7 +141,6 @@ router.get('/usuarios', async (req, res) => {
 // ============================================================
 
 // GET /api/admin/pagos/revision-manual
-// Lista todos los pagos en estado 'revision_manual'
 router.get('/pagos/revision-manual', async (req, res) => {
   try {
     const pagos = await appRepo.getPagosRevisionManual();
@@ -153,7 +152,6 @@ router.get('/pagos/revision-manual', async (req, res) => {
 });
 
 // GET /api/admin/pagos/revision-manual/contador
-// Devuelve solo el contador (para badge en el menú)
 router.get('/pagos/revision-manual/contador', async (req, res) => {
   try {
     const pagos = await appRepo.getPagosRevisionManual();
@@ -165,12 +163,10 @@ router.get('/pagos/revision-manual/contador', async (req, res) => {
 });
 
 // POST /api/admin/pagos/:token/aprobar
-// Aprueba manualmente un pago pendiente
 router.post('/pagos/:token/aprobar', async (req, res) => {
   try {
     const { token } = req.params;
     const { operador } = req.body || {};
-
     if (!token) throw new Error('Token requerido');
 
     const pending = await db.execute({
@@ -184,16 +180,12 @@ router.post('/pagos/:token/aprobar', async (req, res) => {
       return res.status(400).json({ error: `No se puede aprobar: estado actual es '${row.estado}'` });
     }
 
-    // Validar el pago (genera los tickets reales)
     await sorteoService.validarPagoPendiente(row, 'APROBACION_MANUAL', null);
-
-    // Registrar quién aprobó y cuándo
     await db.execute({
       sql: `UPDATE pagos_pendientes SET aprobado_por=?, aprobado_en=datetime('now') WHERE id=?`,
       args: [operador || 'admin', row.id]
     });
 
-    // Marcar SMS recibidos relacionados como CONCILIADO_MANUALMENTE
     await db.execute({
       sql: `UPDATE pagos_recibidos SET estado='CONCILIADO_MANUALMENTE' WHERE pago_pendiente_id=?`,
       args: [row.id]
@@ -208,12 +200,10 @@ router.post('/pagos/:token/aprobar', async (req, res) => {
 });
 
 // POST /api/admin/pagos/:token/rechazar
-// Rechaza un pago pendiente y libera los números
 router.post('/pagos/:token/rechazar', async (req, res) => {
   try {
     const { token } = req.params;
     const { operador, motivo } = req.body || {};
-
     if (!token) throw new Error('Token requerido');
 
     const pending = await db.execute({

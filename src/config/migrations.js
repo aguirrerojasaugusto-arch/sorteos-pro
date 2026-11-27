@@ -2,78 +2,69 @@ import { db } from './database.js';
 
 export async function runMigrations() {
   console.log('⏳ Verificando tablas y ejecutando migraciones...');
-  
   const queries = [
-    `CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      dni TEXT UNIQUE,
-      saldo REAL DEFAULT 0.0,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS sorteos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      slug TEXT UNIQUE,
-      subtitulo TEXT,
-      premio_descripcion TEXT,
-      precio_jugada REAL NOT NULL,
-      pozo_actual REAL DEFAULT 0,
-      imagen TEXT,
-      banner_lateral TEXT,
-      activo INTEGER DEFAULT 1,
-      fecha_sorteo DATETIME,
-      hora_sorteo TEXT,
-      min_bolillas INTEGER DEFAULT 6,
-      max_numero INTEGER DEFAULT 51,
-      moneda TEXT DEFAULT 'S/',
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS tickets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sorteo_id INTEGER,
-      user_id INTEGER,
-      codigo_ticket TEXT NOT NULL,
-      cliente_nombre TEXT,
-      cliente_dni TEXT,
-      cliente_telefono TEXT,
-      cliente_departamento TEXT,
-      cantidad_tickets INTEGER DEFAULT 1,
-      total_pagado REAL DEFAULT 0,
-      comprobante_url TEXT,
-      comprobante_hash TEXT,
-      jugadas_json TEXT,
-      si_o_si INTEGER DEFAULT 0,
-      boliyapa_numero INTEGER,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(sorteo_id) REFERENCES sorteos(id),
-      FOREIGN KEY(user_id) REFERENCES users(id)
-    )`,
+    `CREATE TABLE IF NOT EXISTS users ( id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, dni TEXT UNIQUE, saldo REAL DEFAULT 0.0, creado_en DATETIME DEFAULT CURRENT_TIMESTAMP )`,
+    `CREATE TABLE IF NOT EXISTS settings ( key TEXT PRIMARY KEY, value TEXT )`,
+    `CREATE TABLE IF NOT EXISTS sorteos ( id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, slug TEXT UNIQUE, subtitulo TEXT, premio_descripcion TEXT, precio_jugada REAL NOT NULL, pozo_actual REAL DEFAULT 0, imagen TEXT, banner_lateral TEXT, activo INTEGER DEFAULT 1, fecha_sorteo DATETIME, hora_sorteo TEXT, min_bolillas INTEGER DEFAULT 6, max_numero INTEGER DEFAULT 51, moneda TEXT DEFAULT 'S/', creado_en DATETIME DEFAULT CURRENT_TIMESTAMP )`,
+    `CREATE TABLE IF NOT EXISTS tickets ( id INTEGER PRIMARY KEY AUTOINCREMENT, sorteo_id INTEGER, user_id INTEGER, codigo_ticket TEXT NOT NULL, cliente_nombre TEXT, cliente_dni TEXT, cliente_telefono TEXT, cliente_departamento TEXT, cantidad_tickets INTEGER DEFAULT 1, total_pagado REAL DEFAULT 0, comprobante_url TEXT, comprobante_hash TEXT, jugadas_json TEXT, si_o_si INTEGER DEFAULT 0, boliyapa_numero INTEGER, creado_en DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(sorteo_id) REFERENCES sorteos(id), FOREIGN KEY(user_id) REFERENCES users(id) )`,
     `CREATE TABLE IF NOT EXISTS carrusel (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS bolas_logos (posicion INTEGER PRIMARY KEY, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS banners (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS promos_laterales (id INTEGER PRIMARY KEY AUTOINCREMENT, url_imagen TEXT NOT NULL, fecha TEXT NOT NULL DEFAULT '')`,
-    `CREATE TABLE IF NOT EXISTS comprobantes (
+    `CREATE TABLE IF NOT EXISTS comprobantes ( id INTEGER PRIMARY KEY AUTOINCREMENT, comprobante_hash TEXT NOT NULL, usuario_id INTEGER, cliente_dni TEXT, monto_total REAL NOT NULL DEFAULT 0, creado_en DATETIME DEFAULT CURRENT_TIMESTAMP )`,
+    `CREATE TABLE IF NOT EXISTS yape_webhook_logs ( id INTEGER PRIMARY KEY AUTOINCREMENT, monto_recibido REAL NOT NULL, sms_body TEXT, ticket_id INTEGER, estado TEXT DEFAULT 'pendiente', creado_en DATETIME DEFAULT CURRENT_TIMESTAMP )`,
+    // ✅ NUEVO: Tabla para pagos pendientes (flujo Yape con código 3 dígitos)
+    `CREATE TABLE IF NOT EXISTS pagos_pendientes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      comprobante_hash TEXT NOT NULL,
-      usuario_id INTEGER,
-      cliente_dni TEXT,
-      monto_total REAL NOT NULL DEFAULT 0,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    // ✅ NUEVO: Tabla para logs de webhook de Yape
-    `CREATE TABLE IF NOT EXISTS yape_webhook_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      monto_recibido REAL NOT NULL,
-      sms_body TEXT,
-      ticket_id INTEGER,
+      token TEXT UNIQUE NOT NULL,
+      sorteo_id INTEGER NOT NULL,
+      cliente_dni TEXT NOT NULL,
+      cliente_nombre TEXT NOT NULL,
+      cliente_telefono TEXT,
+      cliente_departamento TEXT,
+      cantidad_tickets INTEGER NOT NULL,
+      cantidad_sorteos INTEGER NOT NULL DEFAULT 1,
+      monto_base REAL NOT NULL,
+      monto_unico REAL NOT NULL,
       estado TEXT DEFAULT 'pendiente',
+      estado_verificacion TEXT,
+      codigo_cliente_3d TEXT,
+      intentos_codigo INTEGER DEFAULT 0,
+      jugadas_json TEXT NOT NULL,
+      si_o_si INTEGER DEFAULT 0,
+      boliyapa_numero INTEGER,
+      expira_en DATETIME NOT NULL,
+      comprobante_url TEXT,
+      captura_url TEXT,
+      sms_texto TEXT,
+      sms_monto REAL,
+      sms_codigo_operacion TEXT,
+      tickets_generados_json TEXT,
+      validado_en DATETIME,
+      aprobado_por TEXT,
+      aprobado_en DATETIME,
+      motivo_rechazo TEXT,
+      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(sorteo_id) REFERENCES sorteos(id)
+    )`,
+    // ✅ NUEVO: Tabla para notificaciones SMS recibidas
+    `CREATE TABLE IF NOT EXISTS pagos_recibidos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monto REAL NOT NULL,
+      codigo_operacion TEXT,
+      codigo_3d TEXT,
+      sms_texto TEXT,
+      estado TEXT DEFAULT 'LIBRE',
+      pago_pendiente_id INTEGER,
+      recibido_en DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    // ✅ NUEVO: Tabla de conciliaciones
+    `CREATE TABLE IF NOT EXISTS conciliaciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pago_recibido_id INTEGER,
+      pago_pendiente_id INTEGER,
+      tipo TEXT,
+      detalle TEXT,
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
@@ -112,7 +103,6 @@ export async function runMigrations() {
       `ALTER TABLE carrusel ADD COLUMN url_imagen TEXT`,
       `ALTER TABLE users ADD COLUMN telefono TEXT`,
       `ALTER TABLE users ADD COLUMN departamento TEXT`,
-      // ✅ NUEVAS COLUMNAS para flujo Yape con centavos mágicos
       `ALTER TABLE tickets ADD COLUMN monto_yape_exacto REAL`,
       `ALTER TABLE tickets ADD COLUMN estado_pago TEXT DEFAULT 'pendiente'`,
       `ALTER TABLE tickets ADD COLUMN captura_yape_url TEXT`,
@@ -130,7 +120,7 @@ export async function runMigrations() {
       }
     }
 
-    // ✅ Índices para búsquedas rápidas
+    // ✅ Índices
     try {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_comprobante_hash ON tickets(comprobante_hash)');
     } catch (e) {
@@ -144,7 +134,6 @@ export async function runMigrations() {
       console.warn('   ⚠️  No se pudo crear UNIQUE en comprobantes:', e.message);
     }
 
-    // ✅ NUEVO: Índice para búsqueda por monto_yape_exacto
     try {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_monto_yape ON tickets(monto_yape_exacto)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tickets_estado_pago ON tickets(estado_pago)');
@@ -168,28 +157,14 @@ export async function runMigrations() {
       console.warn('   ⚠️  No se pudo crear UNIQUE en codigo_ticket:', e.message);
     }
 
+    // ✅ Índices nuevos para pagos_pendientes y pagos_recibidos
     try {
-      await db.execute(`
-        UPDATE users SET telefono = (
-          SELECT t.cliente_telefono FROM tickets t
-          WHERE t.cliente_dni = users.dni
-            AND t.cliente_telefono IS NOT NULL AND t.cliente_telefono != ''
-          ORDER BY t.id DESC LIMIT 1
-        )
-        WHERE (telefono IS NULL OR telefono = '') AND dni IS NOT NULL
-      `);
-      await db.execute(`
-        UPDATE users SET departamento = (
-          SELECT t.cliente_departamento FROM tickets t
-          WHERE t.cliente_dni = users.dni
-            AND t.cliente_departamento IS NOT NULL AND t.cliente_departamento != ''
-          ORDER BY t.id DESC LIMIT 1
-        )
-        WHERE (departamento IS NULL OR departamento = '') AND dni IS NOT NULL
-      `);
-      console.log('🔧 Fichas de clientes completadas desde tickets');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_pagos_pendientes_token ON pagos_pendientes(token)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_pagos_pendientes_estado ON pagos_pendientes(estado)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_pagos_pendientes_expira ON pagos_pendientes(expira_en)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_pagos_recibidos_libre ON pagos_recibidos(monto, codigo_3d, estado)');
     } catch (e) {
-      console.warn('   ⚠️  No se pudieron completar fichas:', e.message);
+      console.warn('   ⚠️  No se pudo crear índices de pagos:', e.message);
     }
 
     try {

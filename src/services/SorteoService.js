@@ -32,12 +32,12 @@ export class SorteoService {
     return Number((Number(sorteo.precio_jugada) * cantidadJugadas * cantidadSorteos).toFixed(2));
   }
 
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   generarCentavosAleatorios() {
-    return Math.floor(Math.random() * 99) + 1; // 1 a 99 centavos
+    return Math.floor(Math.random() * 99) + 1;
   }
 
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   calcularMontoYapeExacto(totalBase) {
     const centavos = this.generarCentavosAleatorios();
     const montoExacto = Number((totalBase + centavos / 100).toFixed(2));
@@ -73,7 +73,6 @@ export class SorteoService {
   }
 
   async comprar(data) {
-    // ========== 1) Validaciones (solo lecturas) ==========
     const sorteo = await this.appRepo.getSorteoById(data.sorteo_id);
     if (!sorteo) throw new Error('Sorteo no encontrado');
     if (sorteo.activo !== undefined && Number(sorteo.activo) !== 1) {
@@ -107,9 +106,6 @@ export class SorteoService {
       throw new Error('No se pudo calcular el monto a pagar');
     }
 
-    // ==========================================
-    // Hash del comprobante
-    // ==========================================
     let comprobanteHash = null;
     if (data.comprobante_file && data.comprobante_file.path) {
       const ruta = data.comprobante_file.path;
@@ -126,7 +122,6 @@ export class SorteoService {
       }
     }
 
-    // ========== 2) Transacción atómica ==========
     const tx = await this.db.transaction('write');
     try {
       if (data.usuario_id) {
@@ -182,7 +177,7 @@ export class SorteoService {
     }
   }
 
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async comprarConYape(data) {
     const sorteo = await this.appRepo.getSorteoById(data.sorteo_id);
     if (!sorteo) throw new Error('Sorteo no encontrado');
@@ -255,7 +250,7 @@ export class SorteoService {
     }
   }
 
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async validarPagoYape(montoRecibido, smsBody, codigoOperacion) {
     const ticket = await this.appRepo.getTicketPendienteByMontoYape(montoRecibido);
     if (!ticket) {

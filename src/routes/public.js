@@ -230,15 +230,15 @@ router.get('/consultar-tickets', async (req, res) => {
 });
 
 // ============================================================
-// ✅ FLUJO YAPE: PAGO CON VALIDACIÓN POR CÓDIGO DE 3 DÍGITOS
+// ✅ NUEVO FLUJO: PAGO CON YAPE + VALIDACIÓN POR CÓDIGO DE 3 DÍGITOS
 // ============================================================
-const PAGO_EXPIRA_MIN = 15;
+const PAGO_EXPIRA_MIN = 10; // ✅ Cambiado de 15 a 10 minutos según el diagrama
 const YAPE_NUMERO_DEFAULT = '993 897 647';
 const MAX_INTENTOS_CODIGO = 3;
 
-// ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+// ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa
 function centavosAleatorios() {
-  return Math.floor(Math.random() * 99) + 1; // 1..99
+  return Math.floor(Math.random() * 99) + 1;
 }
 
 function generarJugadasAleatorias(sorteo, cantidad) {
@@ -278,7 +278,6 @@ function extraerCodigoOperacion(texto) {
     const m = t.match(p);
     if (m) return { completo: m[1], tresDigitos: m[1].slice(-3) };
   }
-  // Fallback: buscar cualquier número de 6 dígitos
   const m2 = t.match(/\b(\d{6})\b/);
   if (m2) return { completo: m2[1], tresDigitos: m2[1].slice(-3) };
   return null;
@@ -379,7 +378,7 @@ router.post('/pago-pendiente', async (req, res) => {
       cantidad_tickets: cantidadTickets,
       cantidad_sorteos: nSorteos,
       monto_base: base,
-      monto_total: montoExacto, // ✅ Ahora es monto exacto, sin centavos aleatorios
+      monto_total: montoExacto,
       yape_numero: yapeNumero,
       yape_titular: yapeTitular,
       expira_en: expiraEn,
@@ -454,7 +453,6 @@ router.post('/pago-pendiente/:token/codigo', async (req, res) => {
     if (pending.rows.length === 0) return res.status(404).json({ error: 'Pago no encontrado' });
     const row = pending.rows[0];
 
-    // Auto-expirar si corresponde
     if (row.estado === 'pendiente' || row.estado === 'verificando') {
       const expira = new Date(String(row.expira_en).replace(' ', 'T') + 'Z');
       if (expira.getTime() < Date.now()) {
@@ -479,7 +477,6 @@ router.post('/pago-pendiente/:token/codigo', async (req, res) => {
     });
 
     if (recibido.rows.length > 0) {
-      // ¡Coincidencia! Consumir el registro y validar el pago
       const rec = recibido.rows[0];
       await db.execute({
         sql: `UPDATE pagos_recibidos SET estado='CONSUMIDO', pago_pendiente_id=? WHERE id=?`,
@@ -545,7 +542,6 @@ router.post('/pago-pendiente/:token/captura', upload.single('captura'), async (r
       args: [req.file.path, row.id]
     });
 
-    // ✅ Enviar alerta WhatsApp (placeholder — implementar con tu proveedor)
     await enviarAlertaWhatsApp(row, req.file.path).catch(err => {
       console.warn('⚠️ No se pudo enviar alerta WhatsApp:', err.message);
     });
@@ -572,7 +568,6 @@ router.get('/pago-pendiente/:token/status', async (req, res) => {
     if (pending.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     const row = pending.rows[0];
 
-    // Auto-expirar si corresponde
     if (row.estado === 'pendiente' || row.estado === 'verificando' || row.estado === 'comprobante_subido') {
       const expira = new Date(String(row.expira_en).replace(' ', 'T') + 'Z');
       if (expira.getTime() < Date.now()) {
@@ -615,7 +610,6 @@ router.post(
   express.text({ type: ['text/plain', 'text/*'] }),
   async (req, res) => {
     try {
-      // --- Autenticación ---
       const expected = process.env.MACRODROID_WEBHOOK_SECRET;
       const provided = req.query?.secret
         || req.headers['x-webhook-secret']
@@ -629,7 +623,6 @@ router.post(
         return res.status(401).json({ error: 'No autorizado' });
       }
 
-      // --- Extraer texto del SMS ---
       let texto = '';
       if (typeof req.body === 'string') {
         texto = req.body;
@@ -660,7 +653,6 @@ router.post(
       const rec = insertRec.rows[0];
 
       // --- CRUCE BIDIRECCIONAL ---
-      // Buscar pago_pendiente VERIFICANDO con mismo monto y código 3d (Escenario B)
       let matched = null;
       if (codigoInfo?.tresDigitos) {
         const matchB = await db.execute({
@@ -679,7 +671,6 @@ router.post(
         }
       }
 
-      // Si no hay match por código, buscar solo por monto (fallback — comportamiento legacy)
       if (!matched) {
         const matchMonto = await db.execute({
           sql: `SELECT * FROM pagos_pendientes
@@ -700,7 +691,16 @@ router.post(
         return res.json({ matched: false, monto, codigo_3d: codigoInfo?.tresDigitos, pago_recibido_id: rec.id });
       }
 
-      // ✅ Validar el pago
+      // ✅ Si el pago ya está validado (aprobación manual previa), marcar SMS como CONCILIADO_MANUALMENTE
+      if (matched.estado === 'validado') {
+        await db.execute({
+          sql: `UPDATE pagos_recibidos SET estado='CONCILIADO_MANUALMENTE', pago_pendiente_id=? WHERE id=?`,
+          args: [matched.id, rec.id]
+        });
+        console.log(`🔄 SMS atrasado conciliado manualmente para pago #${matched.id}`);
+        return res.json({ matched: true, already_validated: true, pago_id: matched.id });
+      }
+
       await db.execute({
         sql: `UPDATE pagos_recibidos SET estado='CONSUMIDO', pago_pendiente_id=? WHERE id=?`,
         args: [matched.id, rec.id]
@@ -747,7 +747,6 @@ router.post('/pago-pendiente/:token/aprobar', async (req, res) => {
       args: [operador || 'admin', row.id]
     });
 
-    // Marcar SMS recibidos relacionados como CONCILIADO_MANUALMENTE
     await db.execute({
       sql: `UPDATE pagos_recibidos SET estado='CONCILIADO_MANUALMENTE' WHERE pago_pendiente_id=?`,
       args: [row.id]

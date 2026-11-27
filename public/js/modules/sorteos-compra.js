@@ -75,7 +75,6 @@ export async function comprarTickets(e) {
     state.compraActualId = token;
     state.compraContexto = { monto_total, cantidad_tickets, expira_en, nombres, apellidos, dni };
 
-    // ✅ Iniciar polling (ahora también maneja el campo de 3 dígitos y subida de comprobante)
     iniciarPolling(token, Number(monto_total));
   } catch (error) {
     console.error('Error de conexión:', error);

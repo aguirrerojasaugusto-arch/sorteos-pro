@@ -30,7 +30,6 @@ function segundosRestantes(expiraEn) {
   return Math.max(0, Math.floor((t - Date.now()) / 1000));
 }
 
-// ✅ Enviar código de 3 dígitos al servidor
 async function enviarCodigo(token, codigo3d) {
   try {
     const res = await fetch(`/api/public/pago-pendiente/${token}/codigo`, {
@@ -48,7 +47,6 @@ async function enviarCodigo(token, codigo3d) {
   }
 }
 
-// ✅ Subir captura para revisión manual (OBLIGATORIA si falla validación)
 async function subirCaptura(token, file) {
   try {
     const fd = new FormData();
@@ -58,22 +56,6 @@ async function subirCaptura(token, file) {
     });
     const data = await res.json();
     if (!res.ok) return { ok: false, error: data.error || 'Error al subir captura' };
-    return { ok: true, ...data };
-  } catch (e) {
-    return { ok: false, error: 'Error de conexión' };
-  }
-}
-
-// ✅ Subir comprobante opcional (control interno, NO bloquea)
-async function subirComprobanteOpcional(token, file) {
-  try {
-    const fd = new FormData();
-    fd.append('comprobante', file);
-    const res = await fetch(`/api/public/pago-pendiente/${token}/comprobante`, {
-      method: 'POST', body: fd
-    });
-    const data = await res.json();
-    if (!res.ok) return { ok: false, error: data.error || 'Error al subir comprobante' };
     return { ok: true, ...data };
   } catch (e) {
     return { ok: false, error: 'Error de conexión' };
@@ -92,14 +74,10 @@ export function iniciarPolling(token, montoTotal) {
   const estadoEl = ensureEstadoEl();
   if (estadoEl) estadoEl.textContent = '🔍 Esperando confirmación de pago...';
 
-  // Renderizar campo de código 3 dígitos
   renderizarCampoCodigo(token, montoTotal);
 
-  // Configurar subida opcional de comprobante (control interno)
-  configurarSubidaComprobante(token);
-
   let intentos = 0;
-  const maxIntentos = 300; // 300 * 3s = 15 min
+  const maxIntentos = 300;
   let maxIntentosCodigo = 3;
 
   state.pollingTimer = setInterval(async () => {
@@ -134,7 +112,6 @@ export function iniciarPolling(token, montoTotal) {
       const elIntentos = document.getElementById('val-intentos');
       if (elIntentos) elIntentos.textContent = `Intentos: ${data.intentos_codigo || 0}/${maxIntentosCodigo}`;
 
-      // ✅ Si alcanzó el máximo de intentos → mostrar box de captura OBLIGATORIA
       if (data.permite_captura) {
         renderizarBotonCaptura(token);
       }
@@ -166,55 +143,6 @@ export function iniciarPolling(token, montoTotal) {
   }, 3000);
 }
 
-// ✅ Configurar botón de subida de comprobante OPCIONAL (control interno)
-function configurarSubidaComprobante(token) {
-  const btn = document.getElementById('btn-subir-comprobante');
-  const fileInput = document.getElementById('inp-comprobante-validacion');
-  const statusEl = document.getElementById('comprobante-status');
-  if (!btn || !fileInput) return;
-
-  btn.addEventListener('click', async () => {
-    if (!fileInput.files.length) {
-      if (statusEl) {
-        statusEl.textContent = '⚠️ Selecciona una imagen primero';
-        statusEl.style.color = '#dc2626';
-      }
-      return;
-    }
-
-    const file = fileInput.files[0];
-    if (file.size > 5 * 1024 * 1024) {
-      if (statusEl) {
-        statusEl.textContent = '❌ El archivo supera los 5MB';
-        statusEl.style.color = '#dc2626';
-      }
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = '⏳ Subiendo...';
-    if (statusEl) { statusEl.textContent = ''; }
-
-    const result = await subirComprobanteOpcional(token, file);
-    if (result.ok) {
-      if (statusEl) {
-        statusEl.textContent = '✅ Comprobante subido (opcional, para control interno)';
-        statusEl.style.color = '#059669';
-      }
-      btn.textContent = '✅ Subido';
-      fileInput.disabled = true;
-    } else {
-      if (statusEl) {
-        statusEl.textContent = `❌ ${result.error}`;
-        statusEl.style.color = '#dc2626';
-      }
-      btn.disabled = false;
-      btn.textContent = '📤 Subir Comprobante';
-    }
-  });
-}
-
-// ✅ Renderiza el campo para ingresar los 3 dígitos
 function renderizarCampoCodigo(token, montoTotal) {
   const cont = document.getElementById('validacion-pago');
   if (!cont) return;
@@ -282,7 +210,6 @@ function renderizarCampoCodigo(token, montoTotal) {
   });
 }
 
-// ✅ Renderiza botón de captura OBLIGATORIA (plan de respaldo)
 function renderizarBotonCaptura(token) {
   if (document.getElementById('box-captura-respaldo')) return;
   const cont = document.getElementById('validacion-pago');
@@ -313,7 +240,6 @@ function renderizarBotonCaptura(token) {
   const btnCaptura = document.getElementById('btn-subir-captura');
   const msgEl = document.getElementById('val-msg-captura');
 
-  // ✅ Validar archivo al seleccionarlo (habilita/deshabilita botón)
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files[0];
     if (!file) {
@@ -325,7 +251,6 @@ function renderizarBotonCaptura(token) {
       return;
     }
 
-    // Validar tamaño
     if (file.size > 5 * 1024 * 1024) {
       fileInput.value = '';
       btnCaptura.disabled = true;
@@ -336,7 +261,6 @@ function renderizarBotonCaptura(token) {
       return;
     }
 
-    // Validar tipo
     if (!file.type.startsWith('image/')) {
       fileInput.value = '';
       btnCaptura.disabled = true;
@@ -347,7 +271,6 @@ function renderizarBotonCaptura(token) {
       return;
     }
 
-    // ✅ Validar que sea comprobante Yape/Plin (si el validador está disponible)
     try {
       const validacion = await validarComprobanteYapePlin(file);
       if (validacion.error) {
@@ -365,13 +288,11 @@ function renderizarBotonCaptura(token) {
       msgEl.style.color = '#059669';
     }
 
-    // ✅ Habilitar botón
     btnCaptura.disabled = false;
     btnCaptura.style.background = '#f59e0b';
     btnCaptura.style.cursor = 'pointer';
   });
 
-  // ✅ Envío de captura
   btnCaptura.addEventListener('click', async () => {
     const file = fileInput.files[0];
     if (!file) {
@@ -390,8 +311,6 @@ function renderizarBotonCaptura(token) {
       msgEl.style.color = '#059669';
       btnCaptura.textContent = '✅ Enviado';
       fileInput.disabled = true;
-      // Detener polling (ya no tiene sentido, el estado cambió a revision_manual)
-      // Pero lo dejamos activo para que muestre el estado actualizado
     } else {
       msgEl.textContent = `❌ ${result.error}`;
       msgEl.style.color = '#dc2626';

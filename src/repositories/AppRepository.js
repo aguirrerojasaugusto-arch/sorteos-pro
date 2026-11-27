@@ -175,31 +175,7 @@ export class AppRepository {
     return result.rows;
   }
 
-  // ✅ NUEVO: Buscar pago pendiente VERIFICANDO por monto y código 3d (Escenario B)
-  async getPagoPendienteVerificando(monto, codigo3d) {
-    const r = await this._db.execute({
-      sql: `SELECT * FROM pagos_pendientes
-            WHERE monto_unico = ? AND codigo_cliente_3d = ?
-              AND estado_verificacion = 'VERIFICANDO'
-              AND estado IN ('pendiente','verificando','comprobante_subido')
-              AND expira_en > datetime('now')
-            ORDER BY creado_en DESC LIMIT 1`,
-      args: [monto, codigo3d]
-    });
-    return r.rows[0] || null;
-  }
-
-  // ✅ NUEVO: Obtener pagos en revisión manual (para Panel Admin)
-  async getPagosRevisionManual() {
-    const r = await this._db.execute({
-      sql: `SELECT * FROM pagos_pendientes
-            WHERE estado = 'revision_manual'
-            ORDER BY creado_en DESC`
-    });
-    return r.rows;
-  }
-
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async getTicketPendienteByMontoYape(montoExacto, exec = null) {
     const e = exec || this._db;
     const result = await e.execute({
@@ -209,7 +185,7 @@ export class AppRepository {
     return result.rows[0] || null;
   }
 
-  // ⚠️ DEPRECATED: Se mantiene por compatibilidad pero ya NO se usa en el flujo nuevo
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async actualizarEstadoPago(ticketId, estado, datos = {}, exec = null) {
     const e = exec || this._db;
     const updates = ['estado_pago = ?'];
@@ -318,6 +294,7 @@ export class AppRepository {
     return result.rows;
   }
 
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async logYapeWebhook(montoRecibido, smsBody, ticketId, estado) {
     const result = await this._db.execute({
       sql: `INSERT INTO yape_webhook_logs (monto_recibido, sms_body, ticket_id, estado) VALUES (?, ?, ?, ?) RETURNING *`,
@@ -326,11 +303,36 @@ export class AppRepository {
     return result.rows[0];
   }
 
+  // ⚠️ DEPRECATED: Se mantiene por compatibilidad
   async limpiarTicketsExpirados(minutos = 15) {
     const result = await this._db.execute({
       sql: `DELETE FROM tickets WHERE estado_pago = 'pendiente' AND creado_en < datetime('now', '-${minutos} minutes')`,
       args: []
     });
     return result.rows.length;
+  }
+
+  // ✅ NUEVO: Buscar pago pendiente VERIFICANDO por monto y código 3d (Escenario B)
+  async getPagoPendienteVerificando(monto, codigo3d) {
+    const r = await this._db.execute({
+      sql: `SELECT * FROM pagos_pendientes
+            WHERE monto_unico = ? AND codigo_cliente_3d = ?
+              AND estado_verificacion = 'VERIFICANDO'
+              AND estado IN ('pendiente','verificando','comprobante_subido')
+              AND expira_en > datetime('now')
+            ORDER BY creado_en DESC LIMIT 1`,
+      args: [monto, codigo3d]
+    });
+    return r.rows[0] || null;
+  }
+
+  // ✅ NUEVO: Obtener pagos en revisión manual (para Panel Admin)
+  async getPagosRevisionManual() {
+    const r = await this._db.execute({
+      sql: `SELECT * FROM pagos_pendientes
+            WHERE estado = 'revision_manual'
+            ORDER BY creado_en DESC`
+    });
+    return r.rows;
   }
 }

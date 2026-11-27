@@ -17,7 +17,6 @@
   <main class="main-content">
     <h2 class="section-title">Sorteos Disponibles</h2>
 
-    <!-- CARRUSEL -->
     <div class="carrusel-wrapper">
       <div class="carrusel-container" id="carrusel-container">
         <div class="carrusel-track" id="carrusel-track"></div>
@@ -26,7 +25,6 @@
       <button class="carrusel-btn next" id="carrusel-next">❯</button>
     </div>
 
-    <!-- PROMOCIONES LATERALES -->
     <aside class="promos-laterales" id="promos-laterales">
       <div class="promos-header">
         <h3>Promociones</h3>
@@ -39,7 +37,6 @@
       <div class="promos-track" id="promos-track"></div>
     </aside>
 
-    <!-- SORTEOS -->
     <div class="sorteos-grid" id="sorteos-grid"></div>
   </main>
 
@@ -49,14 +46,12 @@
       <button class="modal-close" onclick="cerrarModalCompra()">✕</button>
       <h2 id="modal-titulo" class="modal-title">Participar en el Sorteo</h2>
 
-      <!-- INSTRUCCIONES DE PAGO -->
       <div class="instrucciones-pago">
         <p>💳 <strong>Instrucciones de Pago:</strong></p>
         <p>Yapea o Plinea al <strong id="pago-numero">Cargando...</strong></p>
         <p>a nombre de <strong id="pago-nombre">Cargando...</strong></p>
       </div>
 
-      <!-- FORMULARIO DE COMPRA -->
       <form id="form-compra" class="form-compra">
         <div class="form-row">
           <div class="form-group">
@@ -106,7 +101,7 @@
           </div>
         </div>
 
-        <!-- ✅ COMPROBANTE ELIMINADO DE AQUÍ (ahora es opcional en la pantalla de validación) -->
+        <!-- ✅ COMPROBANTE ELIMINADO DE AQUÍ -->
 
         <div class="total-pagar">
           <span>Total a Pagar:</span>
@@ -117,47 +112,43 @@
       </form>
 
       <!-- PANTALLA DE VALIDACIÓN DE PAGO -->
-<div id="validacion-pago" class="validacion-pago hidden">
-  <h3 class="validacion-titulo">⏳ Validando tu pago...</h3>
-  <p class="validacion-monto">
-    Transfiere exactamente <strong>S/ <span id="val-total">0.00</span></strong>
-    <br />al Yape <strong id="val-numero">993 897 647</strong>
-    <br />(<span id="val-nombre">Artesanía Mariposita</span>)
-  </p>
+      <div id="validacion-pago" class="validacion-pago hidden">
+        <h3 class="validacion-titulo">⏳ Validando tu pago...</h3>
+        <p class="validacion-monto">
+          Transfiere exactamente <strong>S/ <span id="val-total">0.00</span></strong>
+          <br />al Yape <strong id="val-numero">993 897 647</strong>
+          <br />(<span id="val-nombre">Artesanía Mariposita</span>)
+        </p>
 
-  <div class="validacion-instrucciones">
-    <p>⚠️ <strong>IMPORTANTE:</strong></p>
-    <ul>
-      <li>Yapea <strong>EXACTAMENTE</strong> el monto que aparece arriba</li>
-      <li>Ingresa los <strong>últimos 3 dígitos</strong> del código de operación de tu constancia Yape</li>
-      <li>La validación es automática en segundos</li>
-    </ul>
-  </div>
+        <div class="validacion-instrucciones">
+          <p>⚠️ <strong>IMPORTANTE:</strong></p>
+          <ul>
+            <li>Yapea <strong>EXACTAMENTE</strong> el monto que aparece arriba</li>
+            <li>Ingresa los <strong>últimos 3 dígitos</strong> del código de operación de tu constancia Yape</li>
+            <li>La validación es automática en segundos</li>
+          </ul>
+        </div>
 
-  <p class="validacion-info">
-    📱 Una vez yapeado, la validación es automática.<br />
-    No cierres esta ventana.
-  </p>
+        <p class="validacion-info">
+          📱 Una vez yapeado, la validación es automática.<br />
+          No cierres esta ventana.
+        </p>
 
-  <!-- Comprobante OPCIONAL (solo control interno, no bloquea) -->
-  <div class="comprobante-opcional">
-    <p style="font-size:13px;">📸 <strong>Opcional:</strong> Sube tu comprobante para control interno</p>
-    <input type="file" id="inp-comprobante-validacion" accept="image/*" />
-    <button type="button" id="btn-subir-comprobante" class="btn-subir-comprobante">📤 Subir Comprobante</button>
-    <p id="comprobante-status" class="comprobante-status"></p>
-  </div>
+        <!-- ✅ Comprobante OPCIONAL (solo control interno) -->
+        <div class="comprobante-opcional">
+          <p style="font-size:13px;">📸 <strong>Opcional:</strong> Sube tu comprobante para control interno</p>
+          <input type="file" id="inp-comprobante-validacion" accept="image/*" />
+          <button type="button" id="btn-subir-comprobante" class="btn-subir-comprobante">📤 Subir Comprobante</button>
+          <p id="comprobante-status" class="comprobante-status"></p>
+        </div>
 
-  <div class="validacion-tiempo">
-    <p>Tiempo restante: <strong id="val-tiempo">15:00</strong></p>
-  </div>
+        <div class="validacion-tiempo">
+          <p>Tiempo restante: <strong id="val-tiempo">10:00</strong></p>
+        </div>
 
-  <p id="val-estado" class="validacion-estado">🔍 Buscando confirmación de pago...</p>
+        <p id="val-estado" class="validacion-estado">🔍 Buscando confirmación de pago...</p>
+      </div>
 
-  <!-- ✅ El box-codigo-3d y box-captura-respaldo se generan dinámicamente desde JS -->
-  <!-- Si la validación falla → aparece box-captura-respaldo con comprobante OBLIGATORIO -->
-</div>
-
-      <!-- RESULTADO DE COMPRA -->
       <div id="resultado-compra" class="resultado-compra hidden"></div>
     </div>
   </div>
